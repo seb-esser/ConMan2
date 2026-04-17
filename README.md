@@ -127,6 +127,13 @@ Ensure you specify the correct path to the IFC model(s) you wish to parse into t
 
 A graph representation of an IFC model can be parsed back into an SPF-based representation using the python script `script_parseGraph2Ifc.py`.
 
+## Unit Test
+Unit tests are now available to ensure the reliability and correctness of core functionalities. The test suite includes validation for the following key features:
+- Verification of Neo4j and NetworkX connection.
+- Validation of IFC entity parsing.
+- Verification of relationship and attribute integrity.
+To run the unit tests, install the development dependencies (see `requirements-dev.txt`) and execute `pytest tests/ -v` from the root directory.
+
 ## Caveats Concerning Edge Case IFC Classes
 The IFC schema includes cases where the general translation of entities, relations, and attributes does not work. One of these cases is the attribute _TrueNorth_,  which the IFC class _IfcGeometricRepresentationSubContext_ derives from its parent class _IfcGeometricRepresentationContext_. It is therefore, ignored [here](https://gitlab.lrz.de/sebastian.esser/conman2/-/blob/7086b80518b6f310adba0fe5fa6154ca92cf30de/src/ifc_graph_interface/IfcGraphInterface.py#L199). If similar cases arise, add the respective key name to the check there.
 
