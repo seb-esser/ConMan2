@@ -67,15 +67,15 @@ class VersionTimeline:
             return self.timeline[project_id]["branches"][branch]
         
         
-    def branch(self, project_id: str, branch_name: str):
+    def branch(self, project_id: str, branch_name: str, graph_provider: str="neo4j"):
         self.load()
-        root_timestamp = IfcGraphInterface.get_timestamp_from_project_id(project_id)
+        root_timestamp = IfcGraphInterface.get_timestamp_from_project_id(project_id, graph_provider=graph_provider)
         if branch_name in self.timeline[project_id]["branches"] or len(root_timestamp) != 1:
             raise Exception(f"Branch {branch_name} already exists in project {project_id} or there isn't exactly 1 added version of the project in the DB.")
         self.timeline[project_id]["branches"][branch_name] = root_timestamp[0]
         self.save()
 
-    def checkout(self, project_id: str, target_branch: str, target_timestamp: str) -> list[str]:
+    def checkout(self, project_id: str, target_branch: str, target_timestamp: str, graph_provider: str="neo4j") -> list[str]:
         """
         Return a list of timestamps [start, ..., target] to move from the single
         model currently in DB to target_timestamp on target_branch.
@@ -84,7 +84,7 @@ class VersionTimeline:
         self.load()
 
         # start timestamp = the one currently present in DB
-        current = IfcGraphInterface.get_timestamp_from_project_id(project_id)
+        current = IfcGraphInterface.get_timestamp_from_project_id(project_id, graph_provider=graph_provider)
         if not current or len(current) != 1:
             raise Exception("Exactly one model version must be present in the DB to plan checkout.")
         start_ts = str(current[0])
@@ -148,7 +148,7 @@ class VersionTimeline:
         print(f"Checkout patches: {patches}")
         for ts_init, ts_updt in patches:
             print(f"Applying patch from {ts_init} to {ts_updt}.")
-            graph_patch = GraphPatch()
+            graph_patch = GraphPatch(graph_provider=graph_provider)
 
             graph_patch.apply_patch(project_id, ts_init, ts_updt)
         return path

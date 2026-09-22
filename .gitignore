@@ -276,3 +276,4 @@ timeline.json
 *.env
 *.gpickle
 .coverage
+equivalence_data/
