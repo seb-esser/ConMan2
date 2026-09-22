@@ -4,12 +4,13 @@ from neo4j_core.neo4j_connection import Neo4jConnection
 from version_timeline.VersionTimeline import VersionTimeline
 from ifc_graph_interface.IfcGraphInterface import IfcGraphInterface
 
-def debugging_commit(project_id: str, timestamp_init: str, timestamp_updt: str):
+def debugging_commit(project_id: str, timestamp_init: str, timestamp_updt: str, graph_provider: str = "neo4j"):
 
     # version_timeline = VersionTimeline()
-    Neo4jConnection(username="neo4j", password="password", hostname="localhost", port=7687)
+    if graph_provider == "neo4j":
+        Neo4jConnection(username="neo4j", password="password", hostname="localhost", port=7687)
 
-    graph_diff = GraphDiff()
+    graph_diff = GraphDiff(graph_provider=graph_provider)
     graph_diff.run_diff(timestamp_init, timestamp_updt)
 
     print(f"Diff created between models of project {project_id} with timestamps {timestamp_init} and {timestamp_updt}.")

@@ -1,9 +1,10 @@
 from neo4j_core.neo4j_connection import Neo4jConnection
 import os
 
-def nuke(yes: bool=False):
+def nuke(yes: bool=False, graph_provider: str="neo4j"):
 
-    Neo4jConnection(username="neo4j", password="password", hostname="localhost", port=7687)
+    if graph_provider == "neo4j":
+        Neo4jConnection(username="neo4j", password="password", hostname="localhost", port=7687)
 
     if not yes:
         answer = input("\033[91mWARNING: This will delete all added data in the database, delete the timeline, and delete all patch files.\033[0m\nDo you want to continue? (y/n): ")
@@ -25,11 +26,14 @@ def nuke(yes: bool=False):
         if os.path.isfile(file_path):
             os.remove(file_path)
 
-    # Direct CYPHER query to delete all nodes and relationships in the db.
-    query = f"""
-    MATCH (n)
-    DETACH DELETE n
-    """
-    Neo4jConnection().cypher_query(query)
+    if graph_provider == "neo4j":
+        # Direct CYPHER query to delete all nodes and relationships in the db.
+        query = f"""
+        MATCH (n)
+        DETACH DELETE n
+        """
+        Neo4jConnection().cypher_query(query)
+    elif graph_provider == "networkx":
+        pass
 
     print(f"Database has been nuked. Neo4J is emptied, patch files and version timeline are removed.")

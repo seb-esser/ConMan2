@@ -1,5 +1,6 @@
 import pytest
 import json
+import networkx as nx
 from unittest.mock import MagicMock, patch, mock_open
 import os
 import sys
@@ -48,6 +49,18 @@ def create_mock_node(global_id, element_id, entity_type, timestamp, node_class=M
     return node
 
 # ----------------------------------------------------------------------
+# Helper function: Build a small NetworkX graph for networkx-path tests
+# ----------------------------------------------------------------------
+
+def build_nx_graph(nodes, edges=None):
+    """nodes=[(node_id, attrs_dict), ...], edges=[(src_id, tgt_id, attrs_dict), ...]"""
+    g = nx.MultiDiGraph()
+    g.add_nodes_from(nodes)
+    for src, tgt, attrs in (edges or []):
+        g.add_edge(src, tgt, **attrs)
+    return g
+
+# ----------------------------------------------------------------------
 # Tests for GraphDiff
 # ----------------------------------------------------------------------
 
@@ -90,7 +103,6 @@ class TestGraphDiff:
         diff_tool.create_equivalence_relations_connection(conn_init, conn_updt)
         conn_init.equivalent_to.connect.assert_called_once_with(conn_updt)
 
-    @pytest.mark.xfail(reason="Source code bug: tries to read GlobalId when it doesn't exist in IoU branch")
     def test_create_equivalence_relations_connection_iou(self, diff_tool):
         """Test IoU (Intersection over Union) matching logic for ConnectionNode without GlobalId"""
         conn_init = create_mock_node(None, "c1", "IfcRelConnects", "v1")
@@ -112,10 +124,10 @@ class TestGraphDiff:
         diff_tool.create_equivalence_relations_connection(conn_init, conn_updt)
         
         # IoU calculates to 1.0, verify equivalent connection is established and unique_paths are recorded
+        # IoU calculates to 1.0, verify equivalent connection is established without requiring a GlobalId
         conn_init.equivalent_to.connect.assert_called_once_with(conn_updt)
 
-        assert "c1" in diff_tool.unique_paths
-        assert "c2" in diff_tool.unique_paths
+        assert diff_tool.unique_paths == {}
 
     @patch('graph_diff.GraphDiff.Node')
     @patch('graph_diff.GraphDiff.PrimaryNode')
@@ -131,6 +143,175 @@ class TestGraphDiff:
         
         diff_tool.run_diff("v1", "v2")
         proj_init.equivalent_to.connect.assert_called_once_with(proj_updt)
+
+# ----------------------------------------------------------------------
+# Tests for GraphDiff (NetworkX)
+# ----------------------------------------------------------------------
+
+class TestGraphDiffNetworkX:
+
+    @pytest.fixture
+    def nx_diff_tool(self):
+        return GraphDiff(graph_provider="networkx")
+
+    def test_record_equivalence_both_directions(self, nx_diff_tool):
+        """_record_equivalence must write both directions so lookups work from either side"""
+        nx_diff_tool._record_equivalence("v1", "#1", "v2", "#10")
+        assert nx_diff_tool.equivalences[("v1", "#1")] == ("v2", "#10")
+        assert nx_diff_tool.equivalences[("v2", "#10")] == ("v1", "#1")
+
+    def test_create_equivalence_relations_primary_matches_children(self, nx_diff_tool):
+        """Children matched by rel_type + list_index + EntityType, recursively"""
+        graph_init = build_nx_graph(
+            nodes=[
+                ("#1", {"EntityType": "IfcProject", "timestamp": "v1", "label": "PrimaryNode"}),
+                ("#2", {"EntityType": "IfcWall", "timestamp": "v1", "label": "PrimaryNode"}),
+            ],
+            edges=[("#1", "#2", {"rel_type": "Decomposes", "list_index": 0})],
+        )
+        graph_updt = build_nx_graph(
+            nodes=[
+                ("#10", {"EntityType": "IfcProject", "timestamp": "v2", "label": "PrimaryNode"}),
+                ("#20", {"EntityType": "IfcWall", "timestamp": "v2", "label": "PrimaryNode"}),
+            ],
+            edges=[("#10", "#20", {"rel_type": "Decomposes", "list_index": 0})],
+        )
+        nx_diff_tool._nx_graph_cache["v1"] = graph_init
+        nx_diff_tool._nx_graph_cache["v2"] = graph_updt
+
+        project_init = ("#1", graph_init.nodes["#1"])
+        project_updt = ("#10", graph_updt.nodes["#10"])
+        nx_diff_tool.create_equivalence_relations_primary(project_init, project_updt)
+
+        assert nx_diff_tool.equivalences[("v1", "#2")] == ("v2", "#20")
+        assert nx_diff_tool.equivalences[("v2", "#20")] == ("v1", "#2")
+
+    def test_create_equivalence_relations_connection_global_id(self, nx_diff_tool):
+        """ConnectionNodes with matching GlobalId are matched without IoU"""
+        graph_init = build_nx_graph(nodes=[
+            ("#5", {"EntityType": "IfcRelContainedInSpatialStructure", "GlobalId": "Rel_1", "timestamp": "v1", "label": "ConnectionNode"}),
+        ])
+        graph_updt = build_nx_graph(nodes=[
+            ("#50", {"EntityType": "IfcRelContainedInSpatialStructure", "GlobalId": "Rel_1", "timestamp": "v2", "label": "ConnectionNode"}),
+        ])
+        nx_diff_tool._nx_graph_cache["v1"] = graph_init
+        nx_diff_tool._nx_graph_cache["v2"] = graph_updt
+
+        conn_init = ("#5", graph_init.nodes["#5"])
+        conn_updt = ("#50", graph_updt.nodes["#50"])
+        nx_diff_tool.create_equivalence_relations_connection(conn_init, conn_updt)
+
+        assert nx_diff_tool.equivalences[("v1", "#5")] == ("v2", "#50")
+
+    def test_create_equivalence_relations_connection_iou(self, nx_diff_tool):
+        """ConnectionNodes without GlobalId are matched via IoU when all children are equivalent"""
+        graph_init = build_nx_graph(
+            nodes=[
+                ("#5", {"EntityType": "IfcRelConnects", "timestamp": "v1", "label": "ConnectionNode"}),
+                ("#6", {"EntityType": "IfcWall", "timestamp": "v1", "label": "PrimaryNode"}),
+            ],
+            edges=[("#5", "#6", {"rel_type": "RelatedElement", "list_index": 0})],
+        )
+        graph_updt = build_nx_graph(
+            nodes=[
+                ("#50", {"EntityType": "IfcRelConnects", "timestamp": "v2", "label": "ConnectionNode"}),
+                ("#60", {"EntityType": "IfcWall", "timestamp": "v2", "label": "PrimaryNode"}),
+            ],
+            edges=[("#50", "#60", {"rel_type": "RelatedElement", "list_index": 0})],
+        )
+        nx_diff_tool._nx_graph_cache["v1"] = graph_init
+        nx_diff_tool._nx_graph_cache["v2"] = graph_updt
+        # Simulate that create_equivalence_relations_primary already matched the children
+        nx_diff_tool._record_equivalence("v1", "#6", "v2", "#60")
+
+        conn_init = ("#5", graph_init.nodes["#5"])
+        conn_updt = ("#50", graph_updt.nodes["#50"])
+        nx_diff_tool.create_equivalence_relations_connection(conn_init, conn_updt)
+
+        assert nx_diff_tool.equivalences[("v1", "#5")] == ("v2", "#50")
+        # Neither side had a GlobalId, so unique_paths must not be populated.
+        assert nx_diff_tool.unique_paths == {}
+
+    def test_create_equivalence_relations_connection_iou_zero_denominator(self, nx_diff_tool):
+        """Two childless, GlobalId-less ConnectionNodes must not raise ZeroDivisionError"""
+        graph_init = build_nx_graph(nodes=[
+            ("#5", {"EntityType": "IfcRelConnects", "timestamp": "v1", "label": "ConnectionNode"}),
+        ])
+        graph_updt = build_nx_graph(nodes=[
+            ("#50", {"EntityType": "IfcRelConnects", "timestamp": "v2", "label": "ConnectionNode"}),
+        ])
+        nx_diff_tool._nx_graph_cache["v1"] = graph_init
+        nx_diff_tool._nx_graph_cache["v2"] = graph_updt
+
+        conn_init = ("#5", graph_init.nodes["#5"])
+        conn_updt = ("#50", graph_updt.nodes["#50"])
+        # Should return quietly, not raise
+        nx_diff_tool.create_equivalence_relations_connection(conn_init, conn_updt)
+
+        assert ("v1", "#5") not in nx_diff_tool.equivalences
+
+    def test_run_diff_networkx_end_to_end(self, nx_diff_tool):
+        """Full run_diff over a small Project + Wall + Connection graph pair"""
+        graph_init = build_nx_graph(
+            nodes=[
+                ("#1", {"EntityType": "IfcProject", "GlobalId": "P1", "timestamp": "v1", "label": "PrimaryNode"}),
+                ("#2", {"EntityType": "IfcWall", "GlobalId": "W1", "timestamp": "v1", "label": "PrimaryNode"}),
+                ("#3", {"EntityType": "IfcRelConnects", "timestamp": "v1", "label": "ConnectionNode"}),
+            ],
+            edges=[
+                ("#1", "#2", {"rel_type": "Decomposes", "list_index": 0}),
+                ("#3", "#2", {"rel_type": "RelatedElement", "list_index": 0}),
+            ],
+        )
+        graph_updt = build_nx_graph(
+            nodes=[
+                ("#10", {"EntityType": "IfcProject", "GlobalId": "P1", "timestamp": "v2", "label": "PrimaryNode"}),
+                ("#20", {"EntityType": "IfcWall", "GlobalId": "W1", "timestamp": "v2", "label": "PrimaryNode"}),
+                ("#30", {"EntityType": "IfcRelConnects", "timestamp": "v2", "label": "ConnectionNode"}),
+            ],
+            edges=[
+                ("#10", "#20", {"rel_type": "Decomposes", "list_index": 0}),
+                ("#30", "#20", {"rel_type": "RelatedElement", "list_index": 0}),
+            ],
+        )
+        nx_diff_tool._nx_graph_cache["v1"] = graph_init
+        nx_diff_tool._nx_graph_cache["v2"] = graph_updt
+
+        nx_diff_tool.run_diff("v1", "v2")
+
+        assert nx_diff_tool.equivalences[("v1", "#1")] == ("v2", "#10")  # project
+        assert nx_diff_tool.equivalences[("v1", "#2")] == ("v2", "#20")  # wall via GlobalId
+        assert nx_diff_tool.equivalences[("v1", "#3")] == ("v2", "#30")  # connection via IoU
+
+    def test_run_diff_networkx_p21_id_collision_safe(self, nx_diff_tool):
+        """
+        Regression test: v1's IfcProject and v2's IfcWall deliberately share the same
+        raw node id "#1" (p21_ids are local to each STEP file and can collide across
+        versions). Equivalences must be keyed by (timestamp, node_id), not the bare
+        node_id, or these two unrelated nodes would clobber each other's record.
+        """
+        graph_init = build_nx_graph(
+            nodes=[
+                ("#1", {"EntityType": "IfcProject", "GlobalId": "P1", "timestamp": "v1", "label": "PrimaryNode"}),
+                ("#2", {"EntityType": "IfcWall", "GlobalId": "W1", "timestamp": "v1", "label": "PrimaryNode"}),
+            ],
+            edges=[("#1", "#2", {"rel_type": "Decomposes", "list_index": 0})],
+        )
+        graph_updt = build_nx_graph(
+            nodes=[
+                ("#10", {"EntityType": "IfcProject", "GlobalId": "P1", "timestamp": "v2", "label": "PrimaryNode"}),
+                ("#1", {"EntityType": "IfcWall", "GlobalId": "W1", "timestamp": "v2", "label": "PrimaryNode"}),  # collides with v1's project id
+            ],
+            edges=[("#10", "#1", {"rel_type": "Decomposes", "list_index": 0})],
+        )
+        nx_diff_tool._nx_graph_cache["v1"] = graph_init
+        nx_diff_tool._nx_graph_cache["v2"] = graph_updt
+
+        nx_diff_tool.run_diff("v1", "v2")
+
+        assert nx_diff_tool.equivalences[("v1", "#1")] == ("v2", "#10")  # project, unaffected by the collision
+        assert nx_diff_tool.equivalences[("v2", "#1")] == ("v1", "#2")   # v2's wall (id "#1") maps to v1's wall, not v1's project
+        assert len(nx_diff_tool.equivalences) == 4
 
 # ----------------------------------------------------------------------
 # Tests for GraphPatch

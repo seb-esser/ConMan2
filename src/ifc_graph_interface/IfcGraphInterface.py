@@ -6,6 +6,7 @@ from networkX_core.networkx_connection import networkxConnection
 from .neo4j_helper import Neo4J_Helper
 
 import ast
+import glob
 from collections import defaultdict
 
 from neo4j_core.neo4j_model import GenericNode, PrimaryNode, SecondaryNode, ConnectionNode, InlineNode
@@ -670,12 +671,28 @@ class IfcGraphInterface:
             return None
 
     @staticmethod
-    def get_timestamp_from_project_id(project_id: str):
-        try:
-            project = PrimaryNode.nodes.filter(
-                GlobalId=project_id, EntityType="IfcProject").all()
-            return [p.timestamp for p in project]
-        except Exception as e:
-            print(
-                f"Error retrieving latest timestamp for project ID {project_id}: {e}")
-            return None
+    def get_timestamp_from_project_id(project_id: str, graph_provider: str = "neo4j"):
+        if graph_provider == "neo4j":
+            try:
+                project = PrimaryNode.nodes.filter(
+                    GlobalId=project_id, EntityType="IfcProject").all()
+                return [p.timestamp for p in project]
+            except Exception as e:
+                print(
+                    f"Error retrieving latest timestamp for project ID {project_id}: {e}")
+                return None
+        elif graph_provider == "networkx":
+            try:
+                timestamps = []
+                for filepath in glob.glob("networkx_graph_*.gpickle"):
+                    nx_interface = networkxConnection()
+                    nx_interface.load_graph(filepath)
+                    for _, node_data in nx_interface.graph.nodes(data=True):
+                        if node_data.get("EntityType") == "IfcProject" and node_data.get("GlobalId") == project_id:
+                            timestamps.append(node_data.get("timestamp"))
+                            break
+                return timestamps
+            except Exception as e:
+                print(
+                    f"Error retrieving latest timestamp for project ID {project_id}: {e}")
+                return None
