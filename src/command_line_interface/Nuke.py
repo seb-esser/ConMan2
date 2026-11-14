@@ -20,7 +20,7 @@ def nuke(yes: bool=False):
 
     # remove patch files
     patch_dir = "patch_data"
-    for filename in os.listdir(patch_dir):
+    for filename in (os.listdir(patch_dir) if os.path.isdir(patch_dir) else []):
         file_path = os.path.join(patch_dir, filename)
         if os.path.isfile(file_path):
             os.remove(file_path)
