@@ -66,58 +66,73 @@ class GraphPatch:
         # Traverse the graph using the unique path as a template to find the node in question.
         for i in range(1, len(path)):
             # A unique step in the unique path is defined by the relation type, the list index of the relation, and the entity type of the target node.
+            next_node = None
             for contestant in latest_node.relation_to.match(rel_type=path[i]["rel_type"], list_index=path[i]["list_index"]):
                 if contestant.EntityType == path[i]["EntityType"]:
-                    latest_node = contestant
-            i += 1
+                    next_node = contestant
+            # Previously the parent was returned silently if a step could not be resolved, so apply_patch could
+            # delete or modify the wrong node.
+            if next_node is None:
+                raise LookupError(f"Unique path {unique_path!r} cannot be resolved at step {i} ({path[i]}) in timestamp {timestamp}.")
+            latest_node = next_node
         return latest_node
     
     
     def create_semantic_patch_pattern(self, equivalent_nodes_init, timestamp_init, timestamp_updt):
         """
         Among the nodes that are deemed equivalent during the Diff, compare the attributes and note and differences.
+
+        The keys of both nodes are compared (open schema): an attribute that only exists in one version is
+        recorded with the value null (None) for the version it is missing in. If the missing attribute is
+        instead represented by a relation to an equivalent (context) node, the relation is recorded as
+        {"path", "rel_type", "list_index"} as before. Relations to pushout nodes are covered by the
+        topological patch.
         """
         for node_init in equivalent_nodes_init:
             # Find the corresponding equivalent node in the db.
             node_updt = node_init.equivalent_to.all()[0]
             unique_path = self.node_ids_to_unique_paths_mapping[timestamp_init][node_init.element_id]
 
-            for property_key, property_value in node_init.__properties__.items():
+            properties_init = node_init.__properties__
+            properties_updt = node_updt.__properties__
+            property_keys = list(properties_init) + [k for k in properties_updt if k not in properties_init]
+            for property_key in property_keys:
                 # Exclude checking for the attributes timestamp and node id, as these are supposed to be different..
-                if property_key not in ["timestamp", "element_id_property"]:
-                    # Compare the attribute values.
-                    property_value_updt = node_updt.__properties__.get(property_key)
-                    if property_value != property_value_updt:
-                        if unique_path not in self.semantic_patch_pattern:
-                            self.semantic_patch_pattern[unique_path] = {}
-                        if property_value is None:
-                            adjacent =  node_init.relation_to.match(rel_type=property_key)[0]
-                            if adjacent.equivalent_to.all():
-                                self.semantic_patch_pattern[unique_path][property_key] = {}
-                                self.semantic_patch_pattern[unique_path][property_key][timestamp_init] = {
-                                    "path": self.node_ids_to_unique_paths_mapping[timestamp_init][adjacent.element_id],
-                                    "rel_type": property_key,
-                                    "list_index": node_init.relation_to.relationship(adjacent).list_index
-                                }
-                                self.semantic_patch_pattern[unique_path][property_key][timestamp_updt] = property_value_updt
-                            else:
-                                continue
-                        elif property_value_updt is None:
-                            adjacent =  node_updt.relation_to.match(rel_type=property_key)[0]
-                            if adjacent.equivalent_to.all():
-                                self.semantic_patch_pattern[unique_path][property_key] = {}
-                                self.semantic_patch_pattern[unique_path][property_key][timestamp_updt] = {
-                                    "path": self.node_ids_to_unique_paths_mapping[timestamp_updt][adjacent.element_id],
-                                    "rel_type": property_key,
-                                    "list_index": node_updt.relation_to.relationship(adjacent).list_index
-                                }
-                                self.semantic_patch_pattern[unique_path][property_key][timestamp_init] = property_value
-                            else:
-                                continue
-                        else:
-                            self.semantic_patch_pattern[unique_path][property_key] = {}
-                            self.semantic_patch_pattern[unique_path][property_key][timestamp_init] = property_value
-                            self.semantic_patch_pattern[unique_path][property_key][timestamp_updt] = property_value_updt
+                if property_key in ["timestamp", "element_id_property"]:
+                    continue
+                # Compare the attribute values.
+                property_value = properties_init.get(property_key)
+                property_value_updt = properties_updt.get(property_key)
+                if property_value == property_value_updt:
+                    continue
+                change = None
+                if property_value is None:
+                    change = self.__relation_change(node_init, property_key, timestamp_init, timestamp_updt, property_value_updt)
+                elif property_value_updt is None:
+                    change = self.__relation_change(node_updt, property_key, timestamp_updt, timestamp_init, property_value)
+                if change is None:
+                    change = {timestamp_init: property_value, timestamp_updt: property_value_updt}
+                self.semantic_patch_pattern.setdefault(unique_path, {})[property_key] = change
+
+    def __relation_change(self, node, property_key, timestamp_relation, timestamp_value, value):
+        """
+        If node holds the attribute property_key as a relation to an equivalent (context) node, return the
+        semantic patch entry {timestamp_relation: {path, rel_type, list_index}, timestamp_value: value}.
+        """
+        adjacents = node.relation_to.match(rel_type=property_key).all()
+        if not adjacents:
+            return None
+        adjacent = adjacents[0]
+        if not adjacent.equivalent_to.all():
+            return None
+        return {
+            timestamp_relation: {
+                "path": self.node_ids_to_unique_paths_mapping[timestamp_relation][adjacent.element_id],
+                "rel_type": property_key,
+                "list_index": node.relation_to.relationship(adjacent).list_index
+            },
+            timestamp_value: value
+        }
 
 
     def create_topological_patch_pattern(self, pushout_nodes, timestamp):
@@ -301,18 +316,20 @@ class GraphPatch:
             for property_key in self.semantic_patch_pattern[unique_path].keys():
                 property_value_init = self.semantic_patch_pattern[unique_path][property_key][timestamp_init]
                 property_value_updt = self.semantic_patch_pattern[unique_path][property_key][timestamp_updt]
-                if isinstance(property_value_updt, dict):
-                    if "path" in property_value_updt.keys():
-                        adjacent = self.find_node_from_unique_path(property_value_updt["path"], timestamp_init)
-                        node.relation_to.connect(adjacent, {"rel_type": property_value_updt["rel_type"], "list_index": property_value_updt["list_index"]})
-                        setattr(node, property_key, None)
-                elif isinstance(property_value_updt, dict):
-                    if "path" in property_value_init.keys():
-                        adjacent = self.find_node_from_unique_path(property_value_init["path"], timestamp_init)
-                        node.relation_to.disconnect(adjacent)
-                        setattr(node, property_key, "$")
+                if isinstance(property_value_updt, dict) and "path" in property_value_updt:
+                    # Attribute value becomes a relation to a context node.
+                    adjacent = self.find_node_from_unique_path(property_value_updt["path"], timestamp_init)
+                    node.relation_to.connect(adjacent, {"rel_type": property_value_updt["rel_type"], "list_index": property_value_updt["list_index"]})
+                    setattr(node, property_key, None)
+                elif isinstance(property_value_init, dict) and "path" in property_value_init:
+                    # Relation to a context node becomes an attribute value. (This branch was unreachable before
+                    # because it repeated the condition on property_value_updt.)
+                    adjacent = self.find_node_from_unique_path(property_value_init["path"], timestamp_init)
+                    node.relation_to.disconnect(adjacent)
+                    setattr(node, property_key, "$" if property_value_updt is None else property_value_updt)
                 else:
-                    setattr(node, property_key, self.semantic_patch_pattern[unique_path][property_key][timestamp_updt])
+                    # Plain attribute change. None removes the attribute (open schema, e.g. GeoJSON properties).
+                    setattr(node, property_key, property_value_updt)
                 node.save()
 
         # Make all timestamps updt to have the whole model be that version.

@@ -231,6 +231,49 @@ class TestGraphPatch:
         assert patch_tool.semantic_patch_pattern[path_string]["Name"]["v1"] == "Wall A"
         assert patch_tool.semantic_patch_pattern[path_string]["Name"]["v2"] == "Wall B"
 
+    def test_create_semantic_patch_pattern_open_schema(self, patch_tool):
+        """Keys that exist in only one version are recorded with None for the version they are missing in."""
+        node_init = create_mock_node("F1", "e1", "Feature", "v1", removed="x", kept="same")
+        node_updt = create_mock_node("F1", "e2", "Feature", "v2", added=5, kept="same")
+        node_init.equivalent_to.all.return_value = [node_updt]
+        # no relations with these rel_types exist
+        node_init.relation_to.match.return_value.all.return_value = []
+        node_updt.relation_to.match.return_value.all.return_value = []
+        patch_tool.node_ids_to_unique_paths_mapping["v1"]["e1"] = "p"
+
+        patch_tool.create_semantic_patch_pattern([node_init], "v1", "v2")
+
+        assert patch_tool.semantic_patch_pattern["p"] == {
+            "removed": {"v1": "x", "v2": None},
+            "added": {"v1": None, "v2": 5},
+        }
+
+    def test_create_semantic_patch_pattern_relation_to_context_node(self, patch_tool):
+        """An attribute that is a relation to an equivalent node in one version keeps the original patch format."""
+        node_init = create_mock_node("W1", "e1", "IfcWall", "v1", Tag="$")
+        node_updt = create_mock_node("W1", "e2", "IfcWall", "v2")
+        node_init.equivalent_to.all.return_value = [node_updt]
+        adjacent = create_mock_node(None, "e9", "IfcLabel", "v2")
+        adjacent.equivalent_to.all.return_value = [True]
+        node_updt.relation_to.match.return_value.all.return_value = [adjacent]
+        node_updt.relation_to.relationship.return_value = MagicMock(list_index=0)
+        patch_tool.node_ids_to_unique_paths_mapping["v1"]["e1"] = "p"
+        patch_tool.node_ids_to_unique_paths_mapping["v2"]["e9"] = "p_adj"
+
+        patch_tool.create_semantic_patch_pattern([node_init], "v1", "v2")
+
+        assert patch_tool.semantic_patch_pattern["p"]["Tag"] == {
+            "v2": {"path": "p_adj", "rel_type": "Tag", "list_index": 0}, "v1": "$"}
+
+    @patch('graph_patch.GraphPatch.PrimaryNode')
+    def test_find_node_from_unique_path_raises_on_unresolvable_step(self, mock_primary, patch_tool):
+        start = create_mock_node("P1", "e1", "IfcWall", "v1")
+        start.relation_to.match.return_value = []
+        mock_primary.nodes.get.return_value = start
+        with pytest.raises(LookupError):
+            patch_tool.find_node_from_unique_path(
+                "[primary_node=P1]|[EntityType=IfcShape,list_index=0,rel_type=Representation]", "v1")
+
     def test_create_topological_patch_pattern(self, patch_tool):
         """Verify serialization extraction of new nodes (pushout) and their topological context"""
         pushout_node = create_mock_node("P2", "e3", "IfcDoor", "v2")
