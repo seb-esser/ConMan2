@@ -82,6 +82,30 @@ class TestGraphDiff:
         # Verify equivalent_to.connect is called between child nodes
         child_init.equivalent_to.connect.assert_called_once_with(child_updt)
 
+    def test_create_equivalence_relations_primary_skips_already_matched_child(self, diff_tool):
+        """Regression: a child that already has an equivalent in the other version must not get a second one.
+
+        The guard used to filter equivalent_to by the child's *own* timestamp, which is always empty because
+        equivalent_to only connects nodes of different timestamps. Shared sub-structures (e.g. an
+        IfcCartesianPoint referenced twice) then received n:m equivalences and apply_patch produced extra nodes.
+        """
+        init_node = create_mock_node("P1", "e1", "IfcWall", "v1")
+        updt_node = create_mock_node("P1", "e2", "IfcWall", "v2")
+        child_init = create_mock_node(None, "e3", "IfcCartesianPoint", "v1")
+        child_updt = create_mock_node(None, "e4", "IfcCartesianPoint", "v2")
+        already_matched = create_mock_node(None, "e5", "IfcCartesianPoint", "v2")
+
+        init_node.relation_to.all.return_value = [child_init]
+        updt_node.relation_to.all.return_value = [child_updt]
+        init_node.relation_to.relationship.return_value = MagicMock(rel_type="Coordinates", list_index=0)
+        updt_node.relation_to.relationship.return_value = MagicMock(rel_type="Coordinates", list_index=0)
+        # child_init is already equivalent to a node of timestamp v2.
+        child_init.equivalent_to.filter.side_effect = lambda timestamp: [already_matched] if timestamp == "v2" else []
+
+        diff_tool.create_equivalence_relations_primary(init_node, updt_node)
+
+        child_init.equivalent_to.connect.assert_not_called()
+
     def test_create_equivalence_relations_connection_global_id(self, diff_tool):
         """Test fast matching for ConnectionNode with identical GlobalId"""
         conn_init = create_mock_node("Rel_1", "c1", "IfcRelConnects", "v1")
