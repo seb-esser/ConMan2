@@ -304,13 +304,15 @@ class TestGraphPatch:
         assert "e5" in pattern["context_to"]
         assert pattern["context_to"]["e5"]["path"] == "context_path"
 
+    @patch('graph_patch.GraphPatch.db')
     @patch('graph_patch.GraphPatch.os.makedirs')
     @patch('builtins.open', new_callable=mock_open)
     @patch('graph_patch.GraphPatch.Node')
     @patch('graph_patch.GraphPatch.PrimaryNode')
     @patch('graph_patch.GraphPatch.ConnectionNode')
-    def test_create_patch_pipeline(self, mock_conn, mock_primary, mock_node, mock_file, mock_makedirs, patch_tool):
+    def test_create_patch_pipeline(self, mock_conn, mock_primary, mock_node, mock_file, mock_makedirs, mock_db, patch_tool):
         """Test the complete Patch generation lifecycle and JSON writing"""
+        mock_db.cypher_query.return_value = ([], None)   # context relation queries: no DB access in unit tests
         # Simplify querysets to directly verify the pipeline runs smoothly
         mock_primary.nodes.filter.return_value = []
         mock_conn.nodes.filter.return_value = []
