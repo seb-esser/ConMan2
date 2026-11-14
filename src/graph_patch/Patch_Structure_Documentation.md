@@ -134,3 +134,26 @@ The full semantic patch pattern of the dissertation example is shown below.
     }
 }
 ```
+
+## Extensions for open-schema models (GeoJSON)
+
+In IFC every entity of a class has the same attribute set (a value, `$`, or a relation). In GeoJSON, by
+contrast, features gain and lose property keys between versions. The semantic patch therefore
+compares the **union** of attribute keys of two equivalent nodes. An attribute that does not exist in
+one version is written as `null` for that version:
+
+```json
+{
+    "[primary_node=bldg-0001]|[EntityType=Properties,list_index=0,rel_type=properties]": {
+        "energyRating": { "ts_v1": null, "ts_v2": "B" },
+        "comment":      { "ts_v1": "null", "ts_v2": null }
+    }
+}
+```
+
+`apply_patch` removes an attribute whose target value is `null`. A JSON `null` *value* inside GeoJSON
+properties is stored as the text `"null"` (see `meta__json_keys`), so the two cannot be confused.
+
+Unique paths percent-encode the characters `% | , = [ ]` inside keys and values
+(`[primary_node=way/123]`, `[connection_node=proj::a%2Cb]`). Only `list_index` is parsed as a number.
+IFC paths contain none of these characters and are unchanged.

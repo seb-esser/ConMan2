@@ -69,12 +69,15 @@ class GraphDiff:
     ### Main Functions ###
     ######################
 
-    def run_diff(self, timestamp_init:str, timestamp_updt:str):
+    def run_diff(self, timestamp_init:str, timestamp_updt:str, root_entity_type:str="IfcProject"):
         """
         Recursively compares nodes on graph for equivalence and generates equivalent_to relations between them.
+
+        @param root_entity_type: EntityType of the project anchor node that is always linked
+            ("IfcProject" for IFC, "FeatureCollection" for GeoJSON).
         """
-        project_init = Node.nodes.get(EntityType="IfcProject", timestamp=timestamp_init)
-        project_updt = Node.nodes.get(EntityType="IfcProject", timestamp=timestamp_updt)
+        project_init = Node.nodes.get(EntityType=root_entity_type, timestamp=timestamp_init)
+        project_updt = Node.nodes.get(EntityType=root_entity_type, timestamp=timestamp_updt)
         #Looks directed but is undirectedly treated.
         project_init.equivalent_to.connect(project_updt)
 
