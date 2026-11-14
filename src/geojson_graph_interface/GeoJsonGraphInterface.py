@@ -53,10 +53,12 @@ REL_GEOMETRIES = "geometries"
 REL_ITEMS = "items"
 
 # Node properties used for bookkeeping. They are part of the node and therefore take part in the
-# semantic diff (e.g. a value turning from string into null changes _json_keys).
-META_JSON_KEYS = "_json_keys"     # keys whose value is stored as JSON text (null, primitive arrays)
-META_ARRAY_KEYS = "_array_keys"   # rel_types whose targets form a JSON array (sorted by list_index)
-META_ID_TYPE = "_id_type"         # "number" or "none" if the GeoJSON id was not a string
+# semantic diff (e.g. a value turning from string into null changes meta__json_keys).
+# They must not start with "_": neomodel silently drops such attributes when GraphPatch.apply_patch
+# creates nodes via the OGM.
+META_JSON_KEYS = "meta__json_keys"     # keys whose value is stored as JSON text (null, primitive arrays)
+META_ARRAY_KEYS = "meta__array_keys"   # rel_types whose targets form a JSON array (sorted by list_index)
+META_ID_TYPE = "meta__id_type"         # "number" or "none" if the GeoJSON id was not a string
 META_MEMBER_INDEX = "member_index"  # position of a Feature inside FeatureCollection.features
 
 STRUCTURAL_KEYS = {"EntityType", "timestamp", "p21_id", "GlobalId", "label", "wrappedValue",
@@ -67,9 +69,11 @@ META_KEYS = {META_JSON_KEYS, META_ARRAY_KEYS, META_ID_TYPE}
 #   * collide with node bookkeeping or with attributes of the neomodel classes (GraphPatch.apply_patch
 #     uses setattr / constructor kwargs), or
 #   * are no plain identifiers. neomodel writes properties as unquoted "SET n.<key> = $<key>", so keys
-#     such as OSM's "addr:city" or "name:ru" break the OGM write path (CypherSyntaxError).
+#     such as OSM's "addr:city" or "name:ru" break the OGM write path (CypherSyntaxError),
+#   * start with "_" (neomodel drops those attributes on save), or with the escape/meta prefixes.
 # Escaped form: ESC + every UTF-8 byte outside [A-Za-z0-9] written as "_hh". Reversible.
-ESC = "_esc_"
+ESC = "esc__"
+META_PREFIX = "meta__"
 RESERVED_KEYS = (STRUCTURAL_KEYS | META_KEYS
                  | {a for cls in (PrimaryNode, ConnectionNode, SecondaryNode, InlineNode) for a in dir(cls)})
 _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
@@ -77,7 +81,8 @@ _ALNUM = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
 
 
 def escape_key(key: str) -> str:
-    if _IDENTIFIER.fullmatch(key) and key not in RESERVED_KEYS and not key.startswith(ESC):
+    if (_IDENTIFIER.fullmatch(key) and key not in RESERVED_KEYS
+            and not key.startswith(("_", ESC, META_PREFIX))):
         return key
     return ESC + "".join(c if c in _ALNUM else "".join(f"_{b:02x}" for b in c.encode("utf-8")) for c in key)
 

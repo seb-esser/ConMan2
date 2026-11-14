@@ -152,7 +152,7 @@ def test_numeric_ids(tmp_path):
 
 def test_reserved_keys_are_escaped(tmp_path):
     props = {"timestamp": "2020", "EntityType": "x", "GlobalId": "g", "id": 3, "save": "s",
-             "label": "l", ESC + "already": 1, "_json_keys": "meta?"}
+             "label": "l", ESC + "already": 1, "meta__json_keys": "meta?", "_private": 1}
     fc = {"type": "FeatureCollection", "id": "p",
           "features": [{"type": "Feature", "id": "f", "geometry": None, "properties": props}]}
     d, out, graph_file = nx_roundtrip(tmp_path, write(tmp_path, fc))
@@ -172,7 +172,8 @@ def test_escaped_keys_are_identifiers():
     import re
     for k in ["addr:city", "name:ru", "Straße", "1st", "a b", "timestamp", "id", "save"]:
         assert re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", escape_key(k)), k
-    assert escape_key("addr:city") == "_esc_addr_3acity"
+    assert escape_key("addr:city") == "esc__addr_3acity"
+    assert not escape_key("_private").startswith("_")
     assert escape_key("name") == "name"
 
 
@@ -297,3 +298,19 @@ def test_p21_ids_are_stable_across_feature_insertion(tmp_path, minimal_fc):
     assert keys(d1) - keys(d2) == {"fc/features/1"}
     all_keys = [n["p21_id"] for n in d2.primary_nodes + d2.connection_nodes + d2.secondary_nodes]
     assert len(all_keys) == len(set(all_keys))
+
+
+@requires_neo4j
+def test_encoded_node_survives_neomodel_ogm_create(neo4j_db):
+    """GraphPatch.apply_patch recreates pushout nodes via node_class(**properties).save()."""
+    from neo4j_core.neo4j_model import SecondaryNode
+    props = {"EntityType": "Properties", "timestamp": "t", "p21_id": "k"}
+    raw = {"addr:city": "Muenchen", "_private": 1, "timestamp": "x", "n": None, "tags": ["a"]}
+    for k, v in raw.items():
+        props[escape_key(k)] = json.dumps(v) if v is None or isinstance(v, list) else v
+    props["meta__json_keys"] = json.dumps(sorted([escape_key("n"), escape_key("tags")]))
+    SecondaryNode(**props).save()
+    rows, _ = neo4j_db.cypher_query("MATCH (n:SecondaryNode {p21_id:'k'}) RETURN properties(n)")
+    stored = rows[0][0]
+    for k, v in props.items():
+        assert stored[k] == v, k
