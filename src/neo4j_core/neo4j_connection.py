@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from urllib.parse import urlparse
 from dotenv import load_dotenv
 from neomodel import config, db
 from neo4j import GraphDatabase
@@ -62,13 +63,22 @@ class Neo4jConnection:
             self.hostname = None
             self.port = None
             
-            # For Aura, construct bolt+ssc:// URI with credentials
-            # Extract host from neo4j+s://host format
-            host = self.uri.replace("neo4j+s://", "").replace("neo4j://", "")
-            bolt_uri = f"bolt+ssc://{self.username}:{self.password}@{host}:7687"
-            
-            config.DATABASE_URL = bolt_uri
-            print(f"[Neo4j] Connected to remote Aura instance: {self.uri}")
+            parsed = urlparse(self.uri)
+            if parsed.scheme in ("bolt", "neo4j"):
+                # Unencrypted (typically local / docker) instance, e.g. NEO4J_URI=bolt://localhost:7688.
+                # Keep host and port as given so that non-default ports can be used.
+                self.hostname = parsed.hostname
+                self.port = parsed.port or 7687
+                config.DATABASE_URL = f"bolt://{self.username}:{self.password}@{self.hostname}:{self.port}"
+                print(f"[Neo4j] Using connection from .env: {self.hostname}:{self.port}")
+            else:
+                # For Aura, construct bolt+ssc:// URI with credentials
+                # Extract host from neo4j+s://host format
+                host = self.uri.replace("neo4j+s://", "").replace("neo4j://", "")
+                bolt_uri = f"bolt+ssc://{self.username}:{self.password}@{host}:7687"
+
+                config.DATABASE_URL = bolt_uri
+                print(f"[Neo4j] Connected to remote Aura instance: {self.uri}")
         else:
             # Fallback to localhost
             self.username = username
