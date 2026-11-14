@@ -1,0 +1,7 @@
+{
+  "v1": "Initial state: 15 features covering all 7 RFC 7946 geometry types, a Polygon with hole, 3D and 2D positions, nested objects, arrays of objects, primitive arrays, null values, a numeric id, a feature without id, and a feature with null geometry.",
+  "v2": "Semantic only: bldg-0001 measuredHeight/name/address.houseNumber/genericAttributes[1].value/tags changed, key energyRating added, key comment removed; tree-0002 height; road-0001 lanes; collection name.",
+  "v3": "Geometry: bldg-0002 exterior vertex 1 moved and courtyard hole removed; road-0001 extended by one vertex; tree-0002 moved.",
+  "v4": "Feature topology: tree-0003 removed; bldg-0003 inserted after bldg-0002 (shifts the order of all following features); furn-0001 gets a fourth point and count=4.",
+  "v5": "Mixed: bldg-0001-part-02 appended; bldg-0001 gets a hole; water-0001 changes Polygon -> MultiPolygon; text of the id-less annotation feature changed."
+}

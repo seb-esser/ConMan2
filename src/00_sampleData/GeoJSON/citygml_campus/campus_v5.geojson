@@ -1,0 +1,637 @@
+{
+  "type": "FeatureCollection",
+  "id": "tum-campus-citygml3-demo",
+  "name": "TUM campus - CityGML 3.0 inspired demo (synthetic, rev 2)",
+  "lod": 1,
+  "bbox": [
+    11.566,
+    48.148,
+    11.57,
+    48.15
+  ],
+  "features": [
+    {
+      "type": "Feature",
+      "id": "bldg-0001",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              11.567,
+              48.1485,
+              519.0
+            ],
+            [
+              11.568,
+              48.1485,
+              519.0
+            ],
+            [
+              11.568,
+              48.149,
+              519.0
+            ],
+            [
+              11.567,
+              48.149,
+              519.0
+            ],
+            [
+              11.567,
+              48.1485,
+              519.0
+            ]
+          ],
+          [
+            [
+              11.5674,
+              48.1487,
+              519.0
+            ],
+            [
+              11.5674,
+              48.1488,
+              519.0
+            ],
+            [
+              11.5676,
+              48.1488,
+              519.0
+            ],
+            [
+              11.5676,
+              48.1487,
+              519.0
+            ],
+            [
+              11.5674,
+              48.1487,
+              519.0
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "featureType": "Building",
+        "name": "Stammgelaende N1 (renovated)",
+        "function": "university",
+        "roofType": "flat",
+        "measuredHeight": 24.1,
+        "storeysAboveGround": 5,
+        "yearOfConstruction": 1965,
+        "isListedMonument": false,
+        "address": {
+          "street": "Arcisstrasse",
+          "houseNumber": "21a",
+          "postalCode": "80333",
+          "city": "Muenchen"
+        },
+        "genericAttributes": [
+          {
+            "name": "owner",
+            "value": "Freistaat Bayern"
+          },
+          {
+            "name": "grossFloorArea",
+            "value": 10150,
+            "uom": "m2"
+          }
+        ],
+        "tags": [
+          "campus",
+          "teaching",
+          "research"
+        ],
+        "energyRating": "B"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bldg-0001-part-01",
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                11.5672,
+                48.1486,
+                542.5
+              ],
+              [
+                11.5676,
+                48.1486,
+                542.5
+              ],
+              [
+                11.5676,
+                48.1488,
+                542.5
+              ],
+              [
+                11.5672,
+                48.1488,
+                542.5
+              ],
+              [
+                11.5672,
+                48.1486,
+                542.5
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                11.5677,
+                48.1486,
+                542.5
+              ],
+              [
+                11.5679,
+                48.1486,
+                542.5
+              ],
+              [
+                11.5679,
+                48.1488,
+                542.5
+              ],
+              [
+                11.5677,
+                48.1488,
+                542.5
+              ],
+              [
+                11.5677,
+                48.1486,
+                542.5
+              ]
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "featureType": "BuildingPart",
+        "parent": "bldg-0001",
+        "function": "lecture hall",
+        "measuredHeight": 4.0
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bldg-0002",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              11.5684,
+              48.1484,
+              519.0
+            ],
+            [
+              11.5695,
+              48.1484,
+              519.0
+            ],
+            [
+              11.5694,
+              48.1492,
+              519.0
+            ],
+            [
+              11.5684,
+              48.1492,
+              519.0
+            ],
+            [
+              11.5684,
+              48.1484,
+              519.0
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "featureType": "Building",
+        "name": "Courtyard building",
+        "function": "office",
+        "roofType": "gabled",
+        "measuredHeight": 17.2,
+        "storeysAboveGround": 4
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "bldg-0003",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              11.5664,
+              48.1484,
+              519.0
+            ],
+            [
+              11.5668,
+              48.1484,
+              519.0
+            ],
+            [
+              11.5668,
+              48.1487,
+              519.0
+            ],
+            [
+              11.5664,
+              48.1487,
+              519.0
+            ],
+            [
+              11.5664,
+              48.1484,
+              519.0
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "featureType": "Building",
+        "name": "Pavilion",
+        "function": "cafe",
+        "roofType": "flat",
+        "measuredHeight": 4.5,
+        "storeysAboveGround": 1
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road-0001",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            11.5662,
+            48.1482
+          ],
+          [
+            11.5675,
+            48.1482
+          ],
+          [
+            11.5698,
+            48.1482
+          ],
+          [
+            11.57,
+            48.1483
+          ]
+        ]
+      },
+      "properties": {
+        "featureType": "Road",
+        "name": "Arcisstrasse",
+        "class": "secondary",
+        "lanes": 3,
+        "surfaceMaterial": "asphalt"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "road-0002",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              11.5682,
+              48.1482
+            ],
+            [
+              11.5682,
+              48.1498
+            ]
+          ],
+          [
+            [
+              11.5662,
+              48.1496
+            ],
+            [
+              11.5698,
+              48.1496
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "featureType": "Road",
+        "class": "footway"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "tree-0001",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          11.5665,
+          48.1488,
+          519.0
+        ]
+      },
+      "properties": {
+        "featureType": "SolitaryVegetationObject",
+        "species": "Tilia cordata",
+        "height": 14.0,
+        "trunkDiameter": 0.45
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "tree-0002",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          11.5666,
+          48.1492,
+          519.0
+        ]
+      },
+      "properties": {
+        "featureType": "SolitaryVegetationObject",
+        "species": "Acer platanoides",
+        "height": 12.0,
+        "trunkDiameter": 0.3
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "furn-0001",
+      "geometry": {
+        "type": "MultiPoint",
+        "coordinates": [
+          [
+            11.5671,
+            48.1493
+          ],
+          [
+            11.5673,
+            48.1493
+          ],
+          [
+            11.5675,
+            48.1493
+          ],
+          [
+            11.5677,
+            48.1493
+          ]
+        ]
+      },
+      "properties": {
+        "featureType": "CityFurniture",
+        "function": "bench",
+        "count": 4
+      }
+    },
+    {
+      "type": "Feature",
+      "id": 1001,
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          11.5678,
+          48.1483
+        ]
+      },
+      "properties": {
+        "featureType": "CityFurniture",
+        "function": "street lamp"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "water-0001",
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                11.5662,
+                48.1497
+              ],
+              [
+                11.5668,
+                48.1497
+              ],
+              [
+                11.5668,
+                48.1499
+              ],
+              [
+                11.5662,
+                48.1499
+              ],
+              [
+                11.5662,
+                48.1497
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                11.5669,
+                48.1497
+              ],
+              [
+                11.567,
+                48.1497
+              ],
+              [
+                11.567,
+                48.1498
+              ],
+              [
+                11.5669,
+                48.1498
+              ],
+              [
+                11.5669,
+                48.1497
+              ]
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "featureType": "WaterBody",
+        "class": "fountain"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "landuse-0001",
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                11.566,
+                48.148
+              ],
+              [
+                11.57,
+                48.148
+              ],
+              [
+                11.57,
+                48.1481
+              ],
+              [
+                11.566,
+                48.1481
+              ],
+              [
+                11.566,
+                48.148
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                11.566,
+                48.1499
+              ],
+              [
+                11.57,
+                48.1499
+              ],
+              [
+                11.57,
+                48.15
+              ],
+              [
+                11.566,
+                48.15
+              ],
+              [
+                11.566,
+                48.1499
+              ]
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "featureType": "LandUse",
+        "class": "green strip"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "gen-0001",
+      "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+          {
+            "type": "Point",
+            "coordinates": [
+              11.5696,
+              48.1494,
+              519.0
+            ]
+          },
+          {
+            "type": "LineString",
+            "coordinates": [
+              [
+                11.5695,
+                48.1493,
+                519.0
+              ],
+              [
+                11.5697,
+                48.1495,
+                521.0
+              ]
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "featureType": "GenericOccupiedSpace",
+        "name": "Sculpture"
+      }
+    },
+    {
+      "type": "Feature",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          11.569,
+          48.1497
+        ]
+      },
+      "properties": {
+        "featureType": "Annotation",
+        "text": "Main entrance (barrier-free)"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "meta-0001",
+      "geometry": null,
+      "properties": {}
+    },
+    {
+      "type": "Feature",
+      "id": "bldg-0001-part-02",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              11.5671,
+              48.1489,
+              542.5
+            ],
+            [
+              11.5674,
+              48.1489,
+              542.5
+            ],
+            [
+              11.5674,
+              48.149,
+              542.5
+            ],
+            [
+              11.5671,
+              48.149,
+              542.5
+            ],
+            [
+              11.5671,
+              48.1489,
+              542.5
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "featureType": "BuildingPart",
+        "parent": "bldg-0001",
+        "function": "roof terrace",
+        "measuredHeight": 3.0
+      }
+    }
+  ]
+}

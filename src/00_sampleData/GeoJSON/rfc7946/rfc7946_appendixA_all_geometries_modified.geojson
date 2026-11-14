@@ -1,0 +1,277 @@
+{
+  "type": "FeatureCollection",
+  "id": "rfc7946-appendix-a",
+  "name": "RFC 7946 Appendix A geometry examples, each wrapped in a Feature",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "rfc-A1",
+      "geometry": {
+        "type": "Point",
+        "coordinates": [
+          100.5,
+          0.5
+        ]
+      },
+      "properties": {
+        "source": "RFC 7946 Appendix A.1 Point"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "rfc-A2",
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            100.0,
+            0.0
+          ],
+          [
+            101.0,
+            1.0
+          ]
+        ]
+      },
+      "properties": {
+        "source": "modified"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "rfc-A3",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.0,
+              0.0
+            ],
+            [
+              101.0,
+              0.0
+            ],
+            [
+              101.0,
+              1.0
+            ],
+            [
+              100.0,
+              1.0
+            ],
+            [
+              100.0,
+              0.0
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "source": "RFC 7946 Appendix A.3 Polygon (no holes)"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "rfc-A4",
+      "geometry": {
+        "type": "Polygon",
+        "coordinates": [
+          [
+            [
+              100.0,
+              0.0
+            ],
+            [
+              101.0,
+              0.0
+            ],
+            [
+              101.0,
+              1.0
+            ],
+            [
+              100.0,
+              1.0
+            ],
+            [
+              100.0,
+              0.0
+            ]
+          ],
+          [
+            [
+              100.8,
+              0.8
+            ],
+            [
+              100.8,
+              0.2
+            ],
+            [
+              100.2,
+              0.2
+            ],
+            [
+              100.2,
+              0.8
+            ],
+            [
+              100.8,
+              0.8
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "source": "RFC 7946 Appendix A.3 Polygon (with holes)"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "rfc-A6",
+      "geometry": {
+        "type": "MultiLineString",
+        "coordinates": [
+          [
+            [
+              100.0,
+              0.0
+            ],
+            [
+              101.0,
+              1.0
+            ]
+          ],
+          [
+            [
+              102.0,
+              2.0
+            ],
+            [
+              103.0,
+              3.0
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "source": "RFC 7946 Appendix A.5 MultiLineString"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "rfc-A7",
+      "geometry": {
+        "type": "MultiPolygon",
+        "coordinates": [
+          [
+            [
+              [
+                102.0,
+                2.0
+              ],
+              [
+                103.0,
+                2.0
+              ],
+              [
+                103.0,
+                3.0
+              ],
+              [
+                102.0,
+                3.0
+              ],
+              [
+                102.0,
+                2.0
+              ]
+            ]
+          ],
+          [
+            [
+              [
+                100.0,
+                0.0
+              ],
+              [
+                101.0,
+                0.0
+              ],
+              [
+                101.0,
+                1.0
+              ],
+              [
+                100.0,
+                1.0
+              ],
+              [
+                100.0,
+                0.0
+              ]
+            ],
+            [
+              [
+                100.2,
+                0.2
+              ],
+              [
+                100.2,
+                0.8
+              ],
+              [
+                100.8,
+                0.8
+              ],
+              [
+                100.8,
+                0.2
+              ],
+              [
+                100.2,
+                0.2
+              ]
+            ]
+          ]
+        ]
+      },
+      "properties": {
+        "source": "RFC 7946 Appendix A.6 MultiPolygon"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "rfc-A8",
+      "geometry": {
+        "type": "GeometryCollection",
+        "geometries": [
+          {
+            "type": "Point",
+            "coordinates": [
+              100.0,
+              0.0
+            ]
+          },
+          {
+            "type": "LineString",
+            "coordinates": [
+              [
+                101.0,
+                0.0
+              ],
+              [
+                102.0,
+                1.0
+              ]
+            ]
+          }
+        ]
+      },
+      "properties": {
+        "source": "RFC 7946 Appendix A.7 GeometryCollection"
+      }
+    }
+  ]
+}
