@@ -17,12 +17,18 @@ class RelProperties(StructuredRel):
     list_index = IntegerProperty()
 
 
+# Fully qualified target class: with a bare 'Node', neomodel resolves the name in the first stack frame
+# at import time whose globals contain "Node" (the class body itself does not yet). Under pytest that is
+# _pytest.runner (pytest's own Node class), so connect() raised "Expected node of class Node".
+NODE_CLASS = __name__ + '.Node'
+
+
 class Node(SemiStructuredNode):
     EntityType = StringProperty(required=True)
 
-    relation_to = RelationshipTo('Node', 'rel', model=RelProperties)
-    relation_from = RelationshipFrom('Node', 'rel', model=RelProperties)
-    equivalent_to = Relationship('Node', 'equivalent_to')
+    relation_to = RelationshipTo(NODE_CLASS, 'rel', model=RelProperties)
+    relation_from = RelationshipFrom(NODE_CLASS, 'rel', model=RelProperties)
+    equivalent_to = Relationship(NODE_CLASS, 'equivalent_to')
 
 
     timestamp = StringProperty(required=True)
