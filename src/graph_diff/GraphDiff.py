@@ -9,6 +9,10 @@ import json
 
 class GraphDiff:
 
+    def __init__(self):
+        # Unique paths of ConnectionNodes matched via Intersection over Union.
+        self.unique_paths = {}
+
     ########################
     ### Helper Functions ###
     ########################
@@ -39,13 +43,15 @@ class GraphDiff:
     def create_equivalence_relations_connection(self, connection_node_init, connection_node_updt):
         """
         Traverse the two parsed models starting from ConnectionNodes and find equivalent nodes. Create equilavent_to relations between them.
+
+        @return: True if an equivalent_to relation was created.
         """
         # Check if a globalid exists on the nodes and if they are the same.
         if hasattr(connection_node_init, 'GlobalId'):
             if hasattr(connection_node_updt, 'GlobalId'):
                 if connection_node_init.GlobalId == connection_node_updt.GlobalId:
                     connection_node_init.equivalent_to.connect(connection_node_updt)
-                    return
+                    return True
         # Since ConnectionNodes dont necessarily have a persistent globalid, another check is used to identify equivalence.
         # This check uses Intersection over Union of the ConnectionNode and its children.
         common_children_count = 0
@@ -58,11 +64,16 @@ class GraphDiff:
         unique_children_count_init = len(connection_node_init.relation_to.all()) - common_children_count
         unique_children_count_updt = len(connection_node_updt.relation_to.all()) - common_children_count
         # Compute the intersection over union. ConnectionNodes are equivalent of all children are equivalent.
-        iou = common_children_count / (unique_children_count_init + common_children_count + unique_children_count_updt)
+        union = unique_children_count_init + common_children_count + unique_children_count_updt
+        if union == 0:
+            return False
+        iou = common_children_count / union
         if iou == 1.0:
             connection_node_init.equivalent_to.connect(connection_node_updt)
-            self.unique_paths[connection_node_init.element_id] = {"connection_node": connection_node_init.GlobalId}
-            self.unique_paths[connection_node_updt.element_id] = {"connection_node": connection_node_updt.GlobalId}           
+            self.unique_paths[connection_node_init.element_id] = {"connection_node": getattr(connection_node_init, "GlobalId", None)}
+            self.unique_paths[connection_node_updt.element_id] = {"connection_node": getattr(connection_node_updt, "GlobalId", None)}
+            return True
+        return False
 
 
     ######################
@@ -86,7 +97,27 @@ class GraphDiff:
                 continue
             primary_node_init.equivalent_to.connect(primary_node_updt)
             self.create_equivalence_relations_primary(primary_node_init, primary_node_updt)
-        # For ConnectionNodes, find all in both models, then run the Intersection over Union function.
-        for connection_node_init in ConnectionNode.nodes.filter(timestamp=timestamp_init):
-            for connection_node_updt in ConnectionNode.nodes.filter(timestamp=timestamp_updt):
-                self.create_equivalence_relations_connection(connection_node_init, connection_node_updt)
+        # For ConnectionNodes, first match all partners with identical GlobalId directly (one lookup instead of
+        # comparing all pairs), then run the Intersection over Union function only among the remaining ones.
+        # Every ConnectionNode gets at most one equivalent.
+        connection_nodes_init = list(ConnectionNode.nodes.filter(timestamp=timestamp_init))
+        connection_nodes_updt = list(ConnectionNode.nodes.filter(timestamp=timestamp_updt))
+        updt_by_global_id = {getattr(n, "GlobalId", None): n for n in connection_nodes_updt}
+        updt_by_global_id.pop(None, None)
+        matched_init, matched_updt = set(), set()
+        for connection_node_init in connection_nodes_init:
+            partner = updt_by_global_id.get(getattr(connection_node_init, "GlobalId", None))
+            if partner is not None and partner.element_id not in matched_updt:
+                connection_node_init.equivalent_to.connect(partner)
+                matched_init.add(connection_node_init.element_id)
+                matched_updt.add(partner.element_id)
+        for connection_node_init in connection_nodes_init:
+            if connection_node_init.element_id in matched_init:
+                continue
+            for connection_node_updt in connection_nodes_updt:
+                if connection_node_updt.element_id in matched_updt:
+                    continue
+                if self.create_equivalence_relations_connection(connection_node_init, connection_node_updt):
+                    matched_init.add(connection_node_init.element_id)
+                    matched_updt.add(connection_node_updt.element_id)
+                    break
