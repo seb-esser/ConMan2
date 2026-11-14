@@ -90,7 +90,6 @@ class TestGraphDiff:
         diff_tool.create_equivalence_relations_connection(conn_init, conn_updt)
         conn_init.equivalent_to.connect.assert_called_once_with(conn_updt)
 
-    @pytest.mark.xfail(reason="Source code bug: tries to read GlobalId when it doesn't exist in IoU branch")
     def test_create_equivalence_relations_connection_iou(self, diff_tool):
         """Test IoU (Intersection over Union) matching logic for ConnectionNode without GlobalId"""
         conn_init = create_mock_node(None, "c1", "IfcRelConnects", "v1")
@@ -116,6 +115,33 @@ class TestGraphDiff:
 
         assert "c1" in diff_tool.unique_paths
         assert "c2" in diff_tool.unique_paths
+
+    def test_create_equivalence_relations_connection_without_children(self, diff_tool):
+        """Two childless ConnectionNodes without GlobalId used to raise ZeroDivisionError."""
+        conn_init = create_mock_node(None, "c1", "IfcRelConnects", "v1")
+        conn_updt = create_mock_node(None, "c2", "IfcRelConnects", "v2")
+        del conn_init.GlobalId
+        del conn_updt.GlobalId
+        assert diff_tool.create_equivalence_relations_connection(conn_init, conn_updt) is False
+        conn_init.equivalent_to.connect.assert_not_called()
+
+    @patch('graph_diff.GraphDiff.Node')
+    @patch('graph_diff.GraphDiff.PrimaryNode')
+    @patch('graph_diff.GraphDiff.ConnectionNode')
+    def test_run_diff_matches_connection_nodes_one_to_one(self, mock_conn, mock_primary, mock_node, diff_tool):
+        """ConnectionNodes are paired by GlobalId first; IoU is only tried for the rest, each node gets one partner."""
+        proj_init = create_mock_node("proj1", "p1", "IfcProject", "v1")
+        proj_updt = create_mock_node("proj1", "p2", "IfcProject", "v2")
+        mock_node.nodes.get.side_effect = [proj_init, proj_updt]
+        mock_primary.nodes.filter.return_value = []
+        a_init = create_mock_node("A", "a1", "IfcRelAggregates", "v1")
+        a_updt = create_mock_node("A", "a2", "IfcRelAggregates", "v2")
+        b_updt = create_mock_node("B", "b2", "IfcRelAggregates", "v2")
+        mock_conn.nodes.filter.side_effect = lambda timestamp: [a_init] if timestamp == "v1" else [b_updt, a_updt]
+        with patch.object(diff_tool, "create_equivalence_relations_connection") as iou:
+            diff_tool.run_diff("v1", "v2")
+        a_init.equivalent_to.connect.assert_called_once_with(a_updt)
+        iou.assert_not_called()
 
     @patch('graph_diff.GraphDiff.Node')
     @patch('graph_diff.GraphDiff.PrimaryNode')
