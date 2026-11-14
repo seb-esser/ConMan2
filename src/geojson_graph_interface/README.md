@@ -92,5 +92,5 @@ the files are also tracked in git.
   are not interpreted.
 - Feature ids must be unique within a collection (the parser raises otherwise).
 - Relations between city objects (e.g. `properties.parent = "bldg-0001"`) stay plain property values.
-  Turning them into ConnectionNodes is a proposed extension (see `../graph_diff_nx/README.md`,
-  "Proposed extensions").
+  Turning them into ConnectionNodes is a proposed extension (see
+  [`docs/GeoJSON_CityGML_DiffPatch.md`](../../docs/GeoJSON_CityGML_DiffPatch.md), P5).

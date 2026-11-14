@@ -134,6 +134,20 @@ Unit tests are now available to ensure the reliability and correctness of core f
 - Verification of relationship and attribute integrity.
 To run the unit tests, install the development dependencies (see `requirements-dev.txt`) and execute `pytest tests/ -v` from the root directory.
 
+## GeoJSON / CityGML
+
+Besides IFC, ConMan2 can version GeoJSON `FeatureCollection`s (city models encoded as GeoJSON,
+CityGML 3.0 semantics in the feature properties). The same commands apply to `.geojson` / `.json`
+files (`add`, `commit`, `get`, `checkout`, `branch`). Both graph providers support parsing, diff,
+and patch, and the patch files are interchangeable between them. Sample data is in
+`src/00_sampleData/GeoJSON/`. The mapping is described in
+[`src/geojson_graph_interface/README.md`](src/geojson_graph_interface/README.md); diff, patch,
+verification, and proposed extensions are in
+[`docs/GeoJSON_CityGML_DiffPatch.md`](docs/GeoJSON_CityGML_DiffPatch.md).
+
+Tests: `pytest tests` (no database needed). The Neo4j tests only run when
+`CONMAN2_TEST_NEO4J_URI` is set, and they **wipe that database**. Use a throwaway instance.
+
 ## Caveats Concerning Edge Case IFC Classes
 The IFC schema includes cases where the general translation of entities, relations, and attributes does not work. One of these cases is the attribute _TrueNorth_,  which the IFC class _IfcGeometricRepresentationSubContext_ derives from its parent class _IfcGeometricRepresentationContext_. It is therefore, ignored [here](https://gitlab.lrz.de/sebastian.esser/conman2/-/blob/7086b80518b6f310adba0fe5fa6154ca92cf30de/src/ifc_graph_interface/IfcGraphInterface.py#L199). If similar cases arise, add the respective key name to the check there.
 
