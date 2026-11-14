@@ -13,6 +13,7 @@ The structure intentionally mirrors ``IfcGraphInterface``:
 See ``README.md`` in this folder for the complete mapping table and the rationale.
 """
 import json
+import re
 from collections import defaultdict
 
 from neomodel import db
@@ -62,19 +63,37 @@ STRUCTURAL_KEYS = {"EntityType", "timestamp", "p21_id", "GlobalId", "label", "wr
                    "element_id_property"}
 META_KEYS = {META_JSON_KEYS, META_ARRAY_KEYS, META_ID_TYPE}
 
-# GeoJSON member/property keys that would collide with node bookkeeping or with attributes of the
-# neomodel classes (GraphPatch.apply_patch uses setattr/constructor kwargs) are escaped.
+# GeoJSON member/property keys are escaped when they
+#   * collide with node bookkeeping or with attributes of the neomodel classes (GraphPatch.apply_patch
+#     uses setattr / constructor kwargs), or
+#   * are no plain identifiers. neomodel writes properties as unquoted "SET n.<key> = $<key>", so keys
+#     such as OSM's "addr:city" or "name:ru" break the OGM write path (CypherSyntaxError).
+# Escaped form: ESC + every UTF-8 byte outside [A-Za-z0-9] written as "_hh". Reversible.
 ESC = "_esc_"
 RESERVED_KEYS = (STRUCTURAL_KEYS | META_KEYS
                  | {a for cls in (PrimaryNode, ConnectionNode, SecondaryNode, InlineNode) for a in dir(cls)})
+_IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+_ALNUM = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789")
 
 
 def escape_key(key: str) -> str:
-    return ESC + key if (key in RESERVED_KEYS or key.startswith(ESC)) else key
+    if _IDENTIFIER.fullmatch(key) and key not in RESERVED_KEYS and not key.startswith(ESC):
+        return key
+    return ESC + "".join(c if c in _ALNUM else "".join(f"_{b:02x}" for b in c.encode("utf-8")) for c in key)
 
 
 def unescape_key(key: str) -> str:
-    return key[len(ESC):] if key.startswith(ESC) else key
+    if not key.startswith(ESC):
+        return key
+    body, out, i = key[len(ESC):], bytearray(), 0
+    while i < len(body):
+        if body[i] == "_":
+            out.append(int(body[i + 1:i + 3], 16))
+            i += 3
+        else:
+            out += body[i].encode("utf-8")
+            i += 1
+    return out.decode("utf-8")
 
 
 class _Decomposition:
@@ -87,17 +106,22 @@ class _Decomposition:
         self.secondary_nodes = []
         self.relationships = []
         self.inline_patterns = []
-        self._counter = 0
 
-    def node(self, kind: str, entity_type: str, global_id: str = None) -> dict:
-        self._counter += 1
-        props = {"EntityType": entity_type, "p21_id": f"#{self._counter}", "timestamp": self.timestamp}
+    def node(self, kind: str, entity_type: str, key: str, global_id: str = None) -> dict:
+        # "p21_id" is only the file-local bulk-load key (as in IFC). It is derived from the node's
+        # structural position (e.g. "f:bldg-0001/geometry/0/coordinates/1") instead of a running
+        # counter, so unchanged nodes keep it across versions and it creates no semantic-patch noise.
+        props = {"EntityType": entity_type, "p21_id": key, "timestamp": self.timestamp}
         if global_id is not None:
             props["GlobalId"] = global_id
         {"PrimaryNode": self.primary_nodes,
          "ConnectionNode": self.connection_nodes,
          "SecondaryNode": self.secondary_nodes}[kind].append(props)
         return props
+
+    @staticmethod
+    def child_key(parent: dict, rel_type: str, list_index: int) -> str:
+        return f"{parent['p21_id']}/{rel_type}/{list_index}"
 
     def rel(self, source: dict, target: dict, rel_type: str, list_index: int = 0):
         self.relationships.append({"source_p21_id": source["p21_id"], "target_p21_id": target["p21_id"],
@@ -137,7 +161,7 @@ class GeoJsonGraphInterface:
                 continue
             skey = escape_key(key)
             if isinstance(val, dict):
-                child = d.node("SecondaryNode", ET_JSON_OBJECT)
+                child = d.node("SecondaryNode", ET_JSON_OBJECT, d.child_key(node, skey, 0))
                 self.__encode_members(d, child, val)
                 d.rel(node, child, skey, 0)
             elif isinstance(val, list) and any(isinstance(x, (dict, list)) for x in val):
@@ -157,11 +181,11 @@ class GeoJsonGraphInterface:
 
     def __encode_array_element(self, d: _Decomposition, parent: dict, rel_type: str, index: int, val):
         if isinstance(val, dict):
-            child = d.node("SecondaryNode", ET_JSON_OBJECT)
+            child = d.node("SecondaryNode", ET_JSON_OBJECT, d.child_key(parent, rel_type, index))
             self.__encode_members(d, child, val)
             d.rel(parent, child, rel_type, index)
         elif isinstance(val, list):
-            child = d.node("SecondaryNode", ET_JSON_ARRAY)
+            child = d.node("SecondaryNode", ET_JSON_ARRAY, d.child_key(parent, rel_type, index))
             for j, x in enumerate(val):
                 self.__encode_array_element(d, child, REL_ITEMS, j, x)
             d.rel(parent, child, rel_type, index)
@@ -174,21 +198,21 @@ class GeoJsonGraphInterface:
 
     def __encode_rings(self, d: _Decomposition, parent: dict, rings: list, entity_type: str):
         for i, ring in enumerate(rings):
-            ring_node = d.node("SecondaryNode", entity_type)
+            ring_node = d.node("SecondaryNode", entity_type, d.child_key(parent, REL_COORDINATES, i))
             self.__encode_positions(d, ring_node, ring)
             d.rel(parent, ring_node, REL_COORDINATES, i)
 
-    def __encode_geometry(self, d: _Decomposition, geometry: dict) -> dict:
+    def __encode_geometry(self, d: _Decomposition, geometry: dict, key: str) -> dict:
         gtype = geometry.get("type")
         if gtype not in GEOMETRY_TYPES:
             raise ValueError(f"Unknown GeoJSON geometry type: {gtype!r}")
-        node = d.node("SecondaryNode", gtype)
+        node = d.node("SecondaryNode", gtype, key)
         # Foreign members and bbox of the geometry object.
         self.__encode_members(d, node, geometry, skip=("type", "coordinates", "geometries"))
 
         if gtype == "GeometryCollection":
             for i, sub in enumerate(geometry.get("geometries", [])):
-                d.rel(node, self.__encode_geometry(d, sub), REL_GEOMETRIES, i)
+                d.rel(node, self.__encode_geometry(d, sub, d.child_key(node, REL_GEOMETRIES, i)), REL_GEOMETRIES, i)
             return node
 
         coords = geometry.get("coordinates", [])
@@ -203,7 +227,7 @@ class GeoJsonGraphInterface:
             self.__encode_rings(d, node, coords, ET_LINESTRING_COORDS)
         elif gtype == "MultiPolygon":
             for i, polygon in enumerate(coords):
-                poly_node = d.node("SecondaryNode", ET_POLYGON_COORDS)
+                poly_node = d.node("SecondaryNode", ET_POLYGON_COORDS, d.child_key(node, REL_COORDINATES, i))
                 self.__encode_rings(d, poly_node, polygon, ET_LINEAR_RING)
                 d.rel(node, poly_node, REL_COORDINATES, i)
         return node
@@ -227,7 +251,7 @@ class GeoJsonGraphInterface:
             raise ValueError("The FeatureCollection has no 'id' member. Provide a project_id explicitly.")
 
         d = _Decomposition(timestamp)
-        root = d.node("PrimaryNode", ET_FEATURE_COLLECTION, str(global_id))
+        root = d.node("PrimaryNode", ET_FEATURE_COLLECTION, "fc", str(global_id))
         if self.__id_type(fc_id):
             root[META_ID_TYPE] = self.__id_type(fc_id)
         self.__encode_members(d, root, fc, skip=("type", "id", "features"))
@@ -239,26 +263,27 @@ class GeoJsonGraphInterface:
             fid = feature.get("id")
             if fid is None:
                 # No persistent identity: identified by its position (unique path) like IFC secondary entities.
-                fnode = d.node("SecondaryNode", ET_FEATURE)
+                fnode = d.node("SecondaryNode", ET_FEATURE, d.child_key(root, REL_FEATURES, index))
                 d.rel(root, fnode, REL_FEATURES, index)
             else:
                 if str(fid) in seen_ids:
                     raise ValueError(f"Duplicate Feature id {fid!r}; ids must be unique within a collection.")
                 seen_ids.add(str(fid))
-                fnode = d.node("PrimaryNode", ET_FEATURE, str(fid))
+                fnode = d.node("PrimaryNode", ET_FEATURE, f"f:{fid}", str(fid))
                 if self.__id_type(fid):
                     fnode[META_ID_TYPE] = self.__id_type(fid)
                 # Membership is objectified like IfcRelAggregates. Its GlobalId is derived from both ends
                 # so it is stable across versions; its member_index carries the feature order.
-                membership = d.node("ConnectionNode", ET_MEMBERSHIP, f"{global_id}::{fid}")
+                membership = d.node("ConnectionNode", ET_MEMBERSHIP, f"m:{fid}", f"{global_id}::{fid}")
                 membership[META_MEMBER_INDEX] = index
                 d.rel(membership, root, REL_RELATING_COLLECTION, 0)
                 d.rel(membership, fnode, REL_RELATED_FEATURE, 0)
 
             if feature.get("geometry") is not None:
-                d.rel(fnode, self.__encode_geometry(d, feature["geometry"]), REL_GEOMETRY, 0)
+                d.rel(fnode, self.__encode_geometry(d, feature["geometry"], d.child_key(fnode, REL_GEOMETRY, 0)),
+                      REL_GEOMETRY, 0)
             if isinstance(feature.get("properties"), dict):
-                pnode = d.node("SecondaryNode", ET_PROPERTIES)
+                pnode = d.node("SecondaryNode", ET_PROPERTIES, d.child_key(fnode, REL_PROPERTIES, 0))
                 self.__encode_members(d, pnode, feature["properties"])
                 d.rel(fnode, pnode, REL_PROPERTIES, 0)
             # Foreign members of the Feature (e.g. bbox, title).

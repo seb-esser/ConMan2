@@ -163,8 +163,17 @@ def test_reserved_keys_are_escaped(tmp_path):
 
 
 def test_escape_is_reversible():
-    for k in ["name", "timestamp", ESC + "x", "addr:city", "_private"]:
+    for k in ["name", "timestamp", ESC + "x", "addr:city", "_private", "name:ru", "Straße", "1st", "",
+              "a b", "a_b", "emoji\U0001F600", "_esc_", "with-dash"]:
         assert unescape_key(escape_key(k)) == k
+
+
+def test_escaped_keys_are_identifiers():
+    import re
+    for k in ["addr:city", "name:ru", "Straße", "1st", "a b", "timestamp", "id", "save"]:
+        assert re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", escape_key(k)), k
+    assert escape_key("addr:city") == "_esc_addr_3acity"
+    assert escape_key("name") == "name"
 
 
 def test_foreign_members_and_bbox(tmp_path):
@@ -276,3 +285,15 @@ def test_project_timestamps_neo4j(neo4j_db):
     GeoJsonGraphInterface("neo4j").geojson_2_graph(path, "ts1")
     GeoJsonGraphInterface("neo4j").geojson_2_graph(path, "ts2")
     assert sorted(GeoJsonGraphInterface.get_timestamp_from_project_id("tum-campus-citygml3-demo")) == ["ts1", "ts2"]
+
+
+def test_p21_ids_are_stable_across_feature_insertion(tmp_path, minimal_fc):
+    d1, _, _ = nx_roundtrip(tmp_path, write(tmp_path, minimal_fc, "a.geojson"), ts="a")
+    shifted = json.loads(json.dumps(minimal_fc))
+    shifted["features"].insert(0, {"type": "Feature", "id": "new", "geometry": None, "properties": {}})
+    d2, _, _ = nx_roundtrip(tmp_path, write(tmp_path, shifted, "b.geojson"), ts="b")
+    keys = lambda d: {n["p21_id"] for n in d.primary_nodes + d.connection_nodes + d.secondary_nodes}
+    # all identified nodes of version a keep their key; only the id-less feature moves (by position)
+    assert keys(d1) - keys(d2) == {"fc/features/1"}
+    all_keys = [n["p21_id"] for n in d2.primary_nodes + d2.connection_nodes + d2.secondary_nodes]
+    assert len(all_keys) == len(set(all_keys))

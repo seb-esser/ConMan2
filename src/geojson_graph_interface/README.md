@@ -63,11 +63,17 @@ position, the same trade-off IFC secondary entities have.
 - Keys whose child nodes form an array are listed in `_array_keys`.
 - Non-string ids are flagged with `_id_type = "number"`. A collection without its own id (when
   `project_id` was passed explicitly) gets `_id_type = "none"`.
-- Keys that collide with node bookkeeping (`timestamp`, `EntityType`, `GlobalId`, `p21_id`, `label`,
-  …) or with attributes of the neomodel classes (`id`, `save`, `nodes`, … — `GraphPatch` uses
-  `setattr`) are stored with the prefix `_esc_`. This is reversible.
-- `p21_id` holds a file-local synthetic id (`#1`, `#2`, …). It is only the bulk-load key, exactly as
-  in IFC, and has no meaning across versions.
+- Keys are escaped (prefix `_esc_`, then every UTF-8 byte outside `[A-Za-z0-9]` written as `_hh`;
+  reversible) when they
+  - collide with node bookkeeping (`timestamp`, `EntityType`, `GlobalId`, `p21_id`, `label`, …) or with
+    attributes of the neomodel classes (`id`, `save`, `nodes`, …), which `GraphPatch` writes via
+    `setattr`, or
+  - are not plain identifiers. neomodel writes `SET n.<key> = $<key>` unquoted, so OSM keys like
+    `addr:city` raise a `CypherSyntaxError` in `apply_patch`. Example: `addr:city` → `_esc_addr_3acity`.
+- `p21_id` is only the file-local bulk-load key, as in IFC. It is derived from the node's structural
+  position (`fc`, `f:<id>`, `m:<id>`, `f:bldg-0001/geometry/0/coordinates/1`, …) rather than a running
+  counter. Unchanged nodes therefore keep their `p21_id` across versions, and inserting a feature does
+  not cause `p21_id` noise in the semantic patch.
 
 ### Output canonicalisation
 
