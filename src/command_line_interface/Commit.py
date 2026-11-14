@@ -2,14 +2,14 @@ from graph_diff.GraphDiff import GraphDiff
 from graph_patch.GraphPatch import GraphPatch
 from neo4j_core.neo4j_connection import Neo4jConnection
 from version_timeline.VersionTimeline import VersionTimeline
-from ifc_graph_interface.IfcGraphInterface import IfcGraphInterface
+from command_line_interface.ModelFormats import timestamps_in_db, root_entity_type
 
 def commit(project_id: str, branch: str, message: str=""):
 
     version_timeline = VersionTimeline()
     Neo4jConnection(username="neo4j", password="password", hostname="localhost", port=7687)
 
-    added_timestamps = IfcGraphInterface.get_timestamp_from_project_id(project_id)
+    added_timestamps = timestamps_in_db(project_id)
     if len(added_timestamps) == 0:
         raise Exception(f"No graph models found for project {project_id}. Please add a graph model first.")
     elif len(added_timestamps) == 1:
@@ -34,7 +34,7 @@ def commit(project_id: str, branch: str, message: str=""):
 
     print(f"Running diff for project {project_id} on branch {branch} between timestamps {timestamp_init} and {timestamp_updt}.")
     graph_diff = GraphDiff()
-    graph_diff.run_diff(timestamp_init, timestamp_updt)
+    graph_diff.run_diff(timestamp_init, timestamp_updt, root_entity_type=root_entity_type(project_id))
 
     print(f"Creating patch for project {project_id} on branch {branch} between timestamps {timestamp_init} and {timestamp_updt}.")
     graph_patch = GraphPatch()

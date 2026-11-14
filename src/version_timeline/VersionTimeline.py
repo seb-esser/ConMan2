@@ -1,7 +1,7 @@
 from datetime import datetime
 import os
 import json
-from ifc_graph_interface.IfcGraphInterface import IfcGraphInterface
+from command_line_interface.ModelFormats import timestamps_in_db
 from graph_patch.GraphPatch import GraphPatch
 from collections import deque, defaultdict
 
@@ -69,7 +69,7 @@ class VersionTimeline:
         
     def branch(self, project_id: str, branch_name: str):
         self.load()
-        root_timestamp = IfcGraphInterface.get_timestamp_from_project_id(project_id)
+        root_timestamp = timestamps_in_db(project_id)
         if branch_name in self.timeline[project_id]["branches"] or len(root_timestamp) != 1:
             raise Exception(f"Branch {branch_name} already exists in project {project_id} or there isn't exactly 1 added version of the project in the DB.")
         self.timeline[project_id]["branches"][branch_name] = root_timestamp[0]
@@ -84,7 +84,7 @@ class VersionTimeline:
         self.load()
 
         # start timestamp = the one currently present in DB
-        current = IfcGraphInterface.get_timestamp_from_project_id(project_id)
+        current = timestamps_in_db(project_id)
         if not current or len(current) != 1:
             raise Exception("Exactly one model version must be present in the DB to plan checkout.")
         start_ts = str(current[0])

@@ -17,33 +17,35 @@ from command_line_interface.Log import log_timeline
 from command_line_interface.DebuggingAdd import debugging_add
 from command_line_interface.DebuggingCommit import debugging_commit
 
-parser = argparse.ArgumentParser(description='ConMan2 CLI - Version Manager for BIM models. ')
+parser = argparse.ArgumentParser(description='ConMan2 CLI - Version Manager for BIM models (IFC) and city models (GeoJSON). ')
 subparsers = parser.add_subparsers(dest='command', help='Available commands.')
 
 # "add" command parser
-add_parser = subparsers.add_parser('add', help='Adds a file to the database. Function: IfcGraphInterface.ifc2graph()')
+add_parser = subparsers.add_parser('add', help='Adds a file (.ifc, .geojson, .json) to the database. Function: IfcGraphInterface.ifc_2_graph() / GeoJsonGraphInterface.geojson_2_graph()')
 add_parser.add_argument('-p', '--path', type=str, required=True, help='Path to the file to add.')
 add_parser.add_argument('-t', '--timestamp', type=str, required=False, default="", help='OPTIONAL: Manually create a timestamp as a custom graph identifier.')
+add_parser.add_argument('-i', '--project_id', type=str, required=False, default=None, help='OPTIONAL (GeoJSON only): project id if the FeatureCollection has no "id" member.')
 
 # "debugging add" command parser
 debugging_add_parser = subparsers.add_parser('debugging_add', help='\033[91mEXPERIMENTAL: Adds models to DB without checking for existing DB state for debugging purposes. Only use in combination with Debugging Commit for testing.\033[0m Function: IfcGraphInterface.ifc2graph()')
 debugging_add_parser.add_argument('-p', '--path', type=str, required=True, help='Path to the file to add.')
 debugging_add_parser.add_argument('-t', '--timestamp', type=str, required=False, default="", help='OPTIONAL: Manually create a timestamp as a custom graph identifier.')
+debugging_add_parser.add_argument('-i', '--project_id', type=str, required=False, default=None, help='OPTIONAL (GeoJSON only): project id if the FeatureCollection has no "id" member.')
 
 # "get" command parser
-get_parser = subparsers.add_parser('get', help='Parses a file back from the database. Function: IfcGraphInterface.graph2ifc()')
+get_parser = subparsers.add_parser('get', help='Parses a file (.ifc, .geojson, .json) back from the database. Function: IfcGraphInterface.graph_2_ifc() / GeoJsonGraphInterface.graph_2_geojson()')
 get_parser.add_argument('-p', '--path', type=str, required=True, help='Path the file is parsed to.')
 get_parser.add_argument('-t', '--timestamp', type=str, required=True, help='Timestamp of the graph model to get.')
 
 # "commit" command parser
 commit_parser = subparsers.add_parser('commit', help='Creates diff and patch from two graphs. Functions: GraphDiff.run_diff() and GraphPatch.create_patch()')
 commit_parser.add_argument('-b', '--branch', type=str, required=True, help='Branch name to commit to.')
-commit_parser.add_argument('-p', '--project_id', type=str, required=True, help='IfcProject GUID of the project to commit to.')
+commit_parser.add_argument('-p', '--project_id', type=str, required=True, help='IfcProject GUID or FeatureCollection id of the project to commit to.')
 commit_parser.add_argument('-m', '--message', type=str, required=False, default='', help='OPTIONAL: Commit message.')
 
 # "debugging commit" command parser
 debugging_commit_parser = subparsers.add_parser('debugging_commit', help='\033[91mEXPERIMENTAL: Creates a diff from 2 paths but does not create a patch or remove the init path. Only use for for viewing a chain of model versions in the DB, not for actual version tracking.\033[0m Function: GraphDiff.run_diff()')
-debugging_commit_parser.add_argument('-p', '--project_id', type=str, required=True, help='IfcProject GUID of the project to commit to.')
+debugging_commit_parser.add_argument('-p', '--project_id', type=str, required=True, help='IfcProject GUID or FeatureCollection id of the project to commit to.')
 debugging_commit_parser.add_argument('-i', '--timestamp_init', type=str, required=True, help='Init timestamp for diff creation.')
 debugging_commit_parser.add_argument('-u', '--timestamp_updt', type=str, required=True, help='Updt timestamp for diff creation.')
 
@@ -87,11 +89,11 @@ args = parser.parse_args()
 if args.command == 'add':
     path = args.path
     timestamp = args.timestamp
-    add(path, timestamp)
+    add(path, timestamp, args.project_id)
 elif args.command == 'debugging_add':
     path = args.path
     timestamp = args.timestamp
-    debugging_add(path, timestamp)
+    debugging_add(path, timestamp, args.project_id)
 elif args.command == 'get':
     path = args.path
     timestamp = args.timestamp
