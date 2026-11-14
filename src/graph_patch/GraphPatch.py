@@ -3,6 +3,7 @@ import json
 import os
 from neomodel import db
 from data_handler.DataHandler import DataHandler
+from graph_patch.context_relations import context_relation_delta, KEY as CONTEXT_RELATIONS
 
 class GraphPatch:
 
@@ -166,6 +167,23 @@ class GraphPatch:
                     self.topological_patch_pattern[timestamp][pushout_node.element_id]["context_from"][adjacent.element_id] = {"path": self.node_ids_to_unique_paths_mapping[timestamp][adjacent.element_id], "properties": relation_from.__properties__}
 
 
+    def create_context_relation_pattern(self, timestamp_init, timestamp_updt):
+        """
+        Relations whose source and target are both equivalent nodes but that exist in only one version.
+        See graph_patch/context_relations.py.
+        """
+        pairs, _ = db.cypher_query(
+            "MATCH (a:Node {timestamp: $ts_init})-[:equivalent_to]-(b:Node {timestamp: $ts_updt}) RETURN elementId(a), elementId(b)",
+            {"ts_init": timestamp_init, "ts_updt": timestamp_updt})
+        partner = {timestamp_init: {a: b for a, b in pairs}, timestamp_updt: {b: a for a, b in pairs}}
+        edges = {}
+        for ts in (timestamp_init, timestamp_updt):
+            rows, _ = db.cypher_query(
+                "MATCH (a:Node {timestamp: $ts})-[r:rel]->(b:Node {timestamp: $ts}) RETURN elementId(a), elementId(b), r.rel_type, r.list_index",
+                {"ts": ts})
+            edges[ts] = [tuple(r) for r in rows if r[0] in partner[ts] and r[1] in partner[ts]]
+        return context_relation_delta(edges, partner, self.node_ids_to_unique_paths_mapping, timestamp_init, timestamp_updt)
+
     def load_patch_from_file(self, path_topo, path_sema):
         """
         To apply a patch to a model, the previously created json-based patch files have to be loaded.
@@ -217,6 +235,9 @@ class GraphPatch:
         self.create_topological_patch_pattern(pushout_nodes_init, timestamp_init)
         self.create_topological_patch_pattern(pushout_nodes_updt, timestamp_updt)
 
+        # Relations between equivalent nodes that exist in only one version (e.g. re-targeted references).
+        self.topological_patch_pattern[CONTEXT_RELATIONS] = self.create_context_relation_pattern(timestamp_init, timestamp_updt)
+
         # Write out the patches.
         os.makedirs("patch_data", exist_ok=True)
         with open(f"patch_data/Patch_Topo_{project_id}_{timestamp_init}_{timestamp_updt}.json", "w") as f:
@@ -241,6 +262,15 @@ class GraphPatch:
             path_topo = f"./patch_data/Patch_Topo_{project_id}_{timestamp_updt}_{timestamp_init}.json"
             path_sema = f"./patch_data/Patch_Sema_{project_id}_{timestamp_updt}_{timestamp_init}.json"
             self.load_patch_from_file(path_topo, path_sema)
+
+        # Resolve the endpoints of context relation changes before the graph is modified (their unique paths only
+        # run over equivalent nodes, which are never deleted). Applied at the end, see below.
+        context_relations = self.topological_patch_pattern.get(CONTEXT_RELATIONS, {})
+        resolve = lambda e: (self.find_node_from_unique_path(e["source"][timestamp_init], timestamp_init).element_id,
+                             self.find_node_from_unique_path(e["target"][timestamp_init], timestamp_init).element_id,
+                             e["rel_type"], e["list_index"])
+        context_relations_remove = [resolve(e) for e in context_relations.get(timestamp_init, [])]
+        context_relations_add = [resolve(e) for e in context_relations.get(timestamp_updt, [])]
 
         # Deletion of init
         # Get all Primary and Connection nodes and create unique paths for all reachable nodes. These are, again, the identifiers.
@@ -331,6 +361,21 @@ class GraphPatch:
                     # Plain attribute change. None removes the attribute (open schema, e.g. GeoJSON properties).
                     setattr(node, property_key, property_value_updt)
                 node.save()
+
+        # Apply context relation changes. Idempotent, because the semantic patch may already have (dis)connected
+        # the same relation when an attribute switched between a value and a relation.
+        for source_id, target_id, rel_type, list_index in context_relations_remove:
+            db.cypher_query("""
+                MATCH (a)-[r:rel {rel_type: $rel_type}]->(b)
+                WHERE elementId(a) = $a AND elementId(b) = $b AND coalesce(r.list_index, -1) = coalesce($list_index, -1)
+                DELETE r""", {"a": source_id, "b": target_id, "rel_type": rel_type, "list_index": list_index})
+        for source_id, target_id, rel_type, list_index in context_relations_add:
+            db.cypher_query("""
+                MATCH (a), (b) WHERE elementId(a) = $a AND elementId(b) = $b
+                MERGE (a)-[r:rel {rel_type: $rel_type, list_index: $list_index}]->(b)
+                SET a += $unset""", {"a": source_id, "b": target_id, "rel_type": rel_type, "list_index": list_index,
+                                     # the attribute is now a relation: drop a "$" placeholder of the same name
+                                     "unset": {rel_type: None}})
 
         # Make all timestamps updt to have the whole model be that version.
         # Newly inserted nodes already carry timestamp_updt; restamp the remaining init nodes in one query

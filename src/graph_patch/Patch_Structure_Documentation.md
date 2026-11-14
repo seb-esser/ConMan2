@@ -157,3 +157,31 @@ properties is stored as the text `"null"` (see `meta__json_keys`), so the two ca
 Unique paths percent-encode the characters `% | , = [ ]` inside keys and values
 (`[primary_node=way/123]`, `[connection_node=proj::a%2Cb]`). Only `list_index` is parsed as a number.
 IFC paths contain none of these characters and are unchanged.
+
+## Context relations (relations between two equivalent nodes)
+
+The topological patch only covers relations that touch a pushout node, and the semantic patch only
+covers attribute values. A relation between two **equivalent** nodes that exists in only one version
+was therefore not patched. Example `GeomRepresentation_01`: in the update, `Cuboid2.Representation`
+switches to the `IfcProductDefinitionShape` shared with `Cuboid1`. The forward patch left
+`Representation` unset, and the reverse patch kept both shapes, so `graph_2_ifc` failed.
+
+Such relations are stored in the topological patch file under the additional key
+`context_relations`. Both endpoint paths are kept, so the entry can be applied in either direction:
+
+```json
+"context_relations": {
+    "ts1": [],
+    "ts2": [{
+        "source": {"ts2": "[primary_node=3uuPRBnzbDKvY53sXt1glD]", "ts1": "[primary_node=3uuPRBnzbDKvY53sXt1glD]"},
+        "target": {"ts2": "[primary_node=3xn$Io5tr8TOYxqwlj5Rkg]|[EntityType=IfcProductDefinitionShape,list_index=0,rel_type=Representation]",
+                   "ts1": "[primary_node=3xn$Io5tr8TOYxqwlj5Rkg]|[EntityType=IfcProductDefinitionShape,list_index=0,rel_type=Representation]"},
+        "rel_type": "Representation",
+        "list_index": 0
+    }]
+}
+```
+
+`apply_patch` from version X to version Y resolves all endpoints with the X paths *before* modifying
+the graph. At the end it removes the relations listed under X and adds those listed under Y. Both
+steps are idempotent. Patch files without the key still apply unchanged.

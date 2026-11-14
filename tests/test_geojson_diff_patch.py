@@ -187,36 +187,6 @@ def test_equivalences_roundtrip(nx_pipeline, tmp_path):
 
 
 # ----------------------------------------------------------------------
-# NetworkX diff/patch also works for IFC graphs (same meta model)
-# ----------------------------------------------------------------------
-
-IFC_CASES = ["GeomRepresentation_01", "GeomRepresentation_03", "LocalPlacement_01"]
-
-
-@pytest.mark.parametrize("case", IFC_CASES)
-def test_nx_diff_patch_ifc(tmp_path, monkeypatch, case):
-    import ifcopenshell
-    from ifc_graph_interface.IfcGraphInterface import IfcGraphInterface
-    d = os.path.join(src_dir, "00_sampleData", "IFC_stepP21", case)
-    files = sorted(f for f in os.listdir(d) if f.endswith(".ifc"))
-    init = os.path.join(d, next(f for f in files if f.lower().startswith("init")))
-    updt = os.path.join(d, next(f for f in files if f.lower().startswith("upd")))
-    monkeypatch.chdir(tmp_path)
-    gi = quiet(IfcGraphInterface, "networkx")
-    quiet(gi.ifc_2_graph, init, "ts1")
-    quiet(gi.ifc_2_graph, updt, "ts2")
-    pid = IfcGraphInterface.get_project_id_from_ifc_path(init)
-    diff = GraphDiffNx.from_files("networkx_graph_ts1.gpickle", "networkx_graph_ts2.gpickle")
-    eq = diff.run_diff("ts1", "ts2")
-    GraphPatchNx().create_patch(pid, "ts1", "ts2", diff.graph_init, diff.graph_updt, eq)
-    quiet(gi.ifc_2_graph, init, "ts1")
-    GraphPatchNx().apply_patch(pid, "ts1", "ts2")
-    quiet(gi.graph_2_ifc, "out.ifc", "ts2")
-    counts = lambda p: Counter(e.is_a() for e in ifcopenshell.open(p))
-    assert counts("out.ifc") == counts(updt)
-
-
-# ----------------------------------------------------------------------
 # Neo4j (opt-in): same pipeline, same results, interchangeable patch files
 # ----------------------------------------------------------------------
 

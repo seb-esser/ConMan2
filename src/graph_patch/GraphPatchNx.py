@@ -16,6 +16,7 @@ import json
 import os
 
 from data_handler.DataHandler import DataHandler
+from graph_patch.context_relations import context_relation_delta, KEY as CONTEXT_RELATIONS
 from networkX_core.networkx_connection import networkxConnection
 
 IGNORED_SEMANTIC_KEYS = ("timestamp", "element_id_property")
@@ -169,6 +170,15 @@ class GraphPatchNx:
                                                            "properties": {"rel_type": rel.get("rel_type"), "list_index": rel.get("list_index")}}
             self.topological_patch_pattern[timestamp][key] = entry
 
+    def create_context_relation_pattern(self, timestamp_init, timestamp_updt):
+        """Relations between equivalent nodes that exist in only one version (see graph_patch/context_relations.py)."""
+        edges = {}
+        for ts in (timestamp_init, timestamp_updt):
+            graph, partner = self.graphs[ts], self.equivalence[ts]
+            edges[ts] = [(a, b, d.get("rel_type"), d.get("list_index")) for a, b, d in graph.edges(data=True)
+                         if a in partner and b in partner]
+        return context_relation_delta(edges, self.equivalence, self.node_ids_to_unique_paths_mapping, timestamp_init, timestamp_updt)
+
     def load_patch_from_file(self, path_topo, path_sema):
         with open(path_sema, "r") as f:
             self.semantic_patch_pattern = json.load(f)
@@ -215,6 +225,7 @@ class GraphPatchNx:
         self.create_semantic_patch_pattern(timestamp_init, timestamp_updt)
         self.create_topological_patch_pattern(pushout_nodes[timestamp_init], timestamp_init)
         self.create_topological_patch_pattern(pushout_nodes[timestamp_updt], timestamp_updt)
+        self.topological_patch_pattern[CONTEXT_RELATIONS] = self.create_context_relation_pattern(timestamp_init, timestamp_updt)
 
         os.makedirs(patch_dir, exist_ok=True)
         with open(f"{patch_dir}/Patch_Topo_{project_id}_{timestamp_init}_{timestamp_updt}.json", "w") as f:
@@ -241,6 +252,14 @@ class GraphPatchNx:
         nx_interface = networkxConnection()
         nx_interface.load_graph(graph_file_init)
         graph = nx_interface.graph
+
+        # Resolve the endpoints of context relation changes before the graph is modified; applied at the end.
+        context_relations = self.topological_patch_pattern.get(CONTEXT_RELATIONS, {})
+        resolve = lambda e: (self.find_node_from_unique_path(graph, e["source"][timestamp_init], timestamp_init),
+                             self.find_node_from_unique_path(graph, e["target"][timestamp_init], timestamp_init),
+                             e["rel_type"], e["list_index"])
+        context_relations_remove = [resolve(e) for e in context_relations.get(timestamp_init, [])]
+        context_relations_add = [resolve(e) for e in context_relations.get(timestamp_updt, [])]
 
         # Deletion of init: unreachable nodes and init pushout nodes.
         for node in self.__prim_and_con(graph, timestamp_init):
@@ -313,6 +332,18 @@ class GraphPatchNx:
                     graph.nodes[node].pop(property_key, None)
                 else:
                     graph.nodes[node][property_key] = value_updt
+
+        # Apply context relation changes (idempotent, like GraphPatch).
+        def matching_edges(a, b, rel_type, list_index):
+            return [k for _, v, k, d in graph.out_edges(a, keys=True, data=True)
+                    if v == b and d.get("rel_type") == rel_type and d.get("list_index") == list_index]
+        for a, b, rel_type, list_index in context_relations_remove:
+            for k in matching_edges(a, b, rel_type, list_index):
+                graph.remove_edge(a, b, key=k)
+        for a, b, rel_type, list_index in context_relations_add:
+            if not matching_edges(a, b, rel_type, list_index):
+                graph.add_edge(a, b, rel_type=rel_type, list_index=list_index)
+            graph.nodes[a].pop(rel_type, None)
 
         # Restamp the remaining init nodes so the whole graph is the updt version.
         for node, data in graph.nodes(data=True):
