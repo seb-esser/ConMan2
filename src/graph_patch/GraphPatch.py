@@ -1,6 +1,7 @@
 from neo4j_core.neo4j_model import Node, GenericNode, PrimaryNode, ConnectionNode, SecondaryNode, InlineNode, RelProperties
 import json
 import os
+from neomodel import db
 from data_handler.DataHandler import DataHandler
 
 class GraphPatch:
@@ -233,7 +234,8 @@ class GraphPatch:
             self.create_init_side_unique_path_mappings(node, timestamp_init)
         # Removal of init pushout pattern.
         # Mark any unreachable nodes for deletion. These nodes can not be updated and so must be fully replaced.
-        for node in Node.nodes.all():
+        # Only nodes of the init version are considered; other projects/versions in the DB stay untouched.
+        for node in Node.nodes.filter(timestamp=timestamp_init):
             if node.element_id not in self.init_side_node_ids_to_unique_paths_mapping[timestamp_init]:
                 if node not in self.nodes_to_delete:
                     self.nodes_to_delete.append(node)
@@ -313,7 +315,8 @@ class GraphPatch:
                     setattr(node, property_key, self.semantic_patch_pattern[unique_path][property_key][timestamp_updt])
                 node.save()
 
-        # Make all timestamps updt to have the whole model be that version
-        for node in Node.nodes.all():
-            setattr(node, "timestamp", timestamp_updt)
-            node.save()
+        # Make all timestamps updt to have the whole model be that version.
+        # Newly inserted nodes already carry timestamp_updt; restamp the remaining init nodes in one query
+        # (instead of one OGM save per node) and leave other projects/versions in the DB untouched.
+        db.cypher_query("MATCH (n:Node {timestamp: $ts_init}) SET n.timestamp = $ts_updt",
+                        {"ts_init": timestamp_init, "ts_updt": timestamp_updt})
