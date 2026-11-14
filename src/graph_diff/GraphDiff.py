@@ -28,8 +28,8 @@ class GraphDiff:
                     rel_init.rel_type == rel_updt.rel_type
                     and rel_init.list_index == rel_updt.list_index
                     and child_init.EntityType == child_updt.EntityType
-                    and not child_init.equivalent_to.filter(timestamp=child_init.timestamp)
-                    and not child_updt.equivalent_to.filter(timestamp=child_updt.timestamp)
+                    and not child_init.equivalent_to.filter(timestamp=child_updt.timestamp)
+                    and not child_updt.equivalent_to.filter(timestamp=child_init.timestamp)
                 ):
                     # Create equivalent_to edge and recursively run the funciton.
                     child_init.equivalent_to.connect(child_updt)
