@@ -3,9 +3,13 @@ from geojson_graph_interface.GeoJsonGraphInterface import GeoJsonGraphInterface
 from command_line_interface.ModelFormats import file_format
 from neo4j_core.neo4j_connection import Neo4jConnection
 from version_timeline.VersionTimeline import VersionTimeline
+from cli_config import ConMan2Config as cfgmod
 
 def debugging_add(model_path: str, timestamp: str, project_id: str = None):
 
+    if cfgmod.get("graph_backend") != "neo4j":
+        raise Exception("debugging_add/debugging_commit keep equivalence edges in the database for inspection and "
+                        "require graph_backend = neo4j (conman2.py config set graph_backend neo4j).")
     version_timeline = VersionTimeline()
     Neo4jConnection(username="neo4j", password="password", hostname="localhost", port=7687)
 

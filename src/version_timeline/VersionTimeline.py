@@ -1,8 +1,6 @@
 from datetime import datetime
 import os
 import json
-from command_line_interface.ModelFormats import timestamps_in_db
-from graph_patch.GraphPatch import GraphPatch
 from collections import deque, defaultdict
 
 class VersionTimeline:
@@ -33,9 +31,13 @@ class VersionTimeline:
         else:
             return True
         
-    def format_commit(self, timestamp_init: str, message: str=""):
+    def format_commit(self, timestamp_init: str, message: str="", increment: str=None):
         parents = [] if timestamp_init is None else [timestamp_init]
-        return {"message": message, "parents": parents}
+        commit = {"message": message, "parents": parents}
+        if increment is not None:
+            # How the increment from the parent to this commit is stored ("conman" or "rdf-patch").
+            commit["increment"] = increment
+        return commit
 
     def add_project(self, project_id: str, timestamp: str, message: str=""):
         self.load()
@@ -53,10 +55,10 @@ class VersionTimeline:
             raise Exception(f"Project {project_id} already exists in timeline.")
             
 
-    def add_commit_to_timeline(self, project_id: str, branch: str, timestamp_init: str, timestamp_updt: str, message: str=""):
+    def add_commit_to_timeline(self, project_id: str, branch: str, timestamp_init: str, timestamp_updt: str, message: str="", increment: str="conman"):
         self.load()
         self.timeline[project_id]["branches"][branch] = timestamp_updt
-        self.timeline[project_id]["commits"][timestamp_updt] = self.format_commit(timestamp_init, message)
+        self.timeline[project_id]["commits"][timestamp_updt] = self.format_commit(timestamp_init, message, increment)
         self.save()
 
     def get_latest_commit_on_branch(self, project_id: str, branch: str):
@@ -67,15 +69,24 @@ class VersionTimeline:
             return self.timeline[project_id]["branches"][branch]
         
         
-    def branch(self, project_id: str, branch_name: str):
+    def branch(self, project_id: str, branch_name: str, backend=None):
         self.load()
-        root_timestamp = timestamps_in_db(project_id)
+        if backend is None:
+            from command_line_interface.Backend import get_backend
+            backend = get_backend()
+        root_timestamp = backend.timestamps(project_id)
         if branch_name in self.timeline[project_id]["branches"] or len(root_timestamp) != 1:
             raise Exception(f"Branch {branch_name} already exists in project {project_id} or there isn't exactly 1 added version of the project in the DB.")
         self.timeline[project_id]["branches"][branch_name] = root_timestamp[0]
         self.save()
 
-    def checkout(self, project_id: str, target_branch: str, target_timestamp: str) -> list[str]:
+    def increment_between(self, project_id: str, timestamp_a: str, timestamp_b: str) -> str:
+        """Increment type of the timeline edge a-b (stored on the child commit; default 'conman')."""
+        commits = self.timeline[project_id]["commits"]
+        child = timestamp_b if timestamp_a in commits.get(timestamp_b, {}).get("parents", []) else timestamp_a
+        return commits.get(child, {}).get("increment", "conman")
+
+    def checkout(self, project_id: str, target_branch: str, target_timestamp: str, backend=None) -> list[str]:
         """
         Return a list of timestamps [start, ..., target] to move from the single
         model currently in DB to target_timestamp on target_branch.
@@ -83,8 +94,11 @@ class VersionTimeline:
         """
         self.load()
 
+        if backend is None:
+            from command_line_interface.Backend import get_backend
+            backend = get_backend()
         # start timestamp = the one currently present in DB
-        current = timestamps_in_db(project_id)
+        current = backend.timestamps(project_id)
         if not current or len(current) != 1:
             raise Exception("Exactly one model version must be present in the DB to plan checkout.")
         start_ts = str(current[0])
@@ -147,10 +161,9 @@ class VersionTimeline:
             patches.append((ts_init, ts_updt))
         print(f"Checkout patches: {patches}")
         for ts_init, ts_updt in patches:
-            print(f"Applying patch from {ts_init} to {ts_updt}.")
-            graph_patch = GraphPatch()
-
-            graph_patch.apply_patch(project_id, ts_init, ts_updt)
+            increment = self.increment_between(project_id, ts_init, ts_updt)
+            print(f"Applying {increment} increment from {ts_init} to {ts_updt} (backend: {backend.name}).")
+            backend.apply_increment(project_id, ts_init, ts_updt, increment)
         return path
 
     @staticmethod

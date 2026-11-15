@@ -7,3 +7,4 @@ ifcopenshell>=0.8
 neomodel>=5.4,<6
 python-dotenv
 networkx>=3.0
+rdflib>=7.0

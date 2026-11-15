@@ -1,4 +1,5 @@
 import argparse
+import sys
 
 from version_timeline.VersionTimeline import VersionTimeline
 
@@ -16,24 +17,38 @@ from command_line_interface.Branch import branch
 from command_line_interface.Log import log_timeline
 from command_line_interface.DebuggingAdd import debugging_add
 from command_line_interface.DebuggingCommit import debugging_commit
+from command_line_interface.Config import config_command
+from cli_config import ConMan2Config
 
-parser = argparse.ArgumentParser(description='ConMan2 CLI - Version Manager for BIM models (IFC) and city models (GeoJSON). ')
+parser = argparse.ArgumentParser(description='ConMan2 CLI - Version Manager for BIM models (IFC), city models (GeoJSON) and RDF datasets. ')
+parser.add_argument('--backend', choices=ConMan2Config.SCHEMA['graph_backend']['choices'], default=None,
+                    help='OPTIONAL: graph backend for this call only (overrides the stored config).')
+parser.add_argument('--increment', choices=ConMan2Config.SCHEMA['increment_representation']['choices'], default=None,
+                    help='OPTIONAL: increment representation for this call only (overrides the stored config).')
 subparsers = parser.add_subparsers(dest='command', help='Available commands.')
 
+# "config" command parser
+config_parser = subparsers.add_parser('config', help='Shows or changes the base configuration (graph backend, increment representation, ...). '
+                                                     'Without arguments an interactive menu opens.')
+config_parser.add_argument('action', nargs='?', choices=['menu', 'show', 'get', 'set', 'reset'], default=None,
+                           help='menu | show | get <key> | set <key> <value> | reset. Omit for the interactive menu (in a terminal).')
+config_parser.add_argument('key', nargs='?', default=None, help=f"Config key: {', '.join(ConMan2Config.SCHEMA)}")
+config_parser.add_argument('value', nargs='?', default=None, help='New value (for set).')
+
 # "add" command parser
-add_parser = subparsers.add_parser('add', help='Adds a file (.ifc, .geojson, .json) to the database. Function: IfcGraphInterface.ifc_2_graph() / GeoJsonGraphInterface.geojson_2_graph()')
+add_parser = subparsers.add_parser('add', help='Adds a file (.ifc, .geojson, .json, .ttl, .nt, .n3, .rdf, .owl, .jsonld) to the graph backend. Function: IfcGraphInterface.ifc_2_graph() / GeoJsonGraphInterface.geojson_2_graph()')
 add_parser.add_argument('-p', '--path', type=str, required=True, help='Path to the file to add.')
 add_parser.add_argument('-t', '--timestamp', type=str, required=False, default="", help='OPTIONAL: Manually create a timestamp as a custom graph identifier.')
-add_parser.add_argument('-i', '--project_id', type=str, required=False, default=None, help='OPTIONAL (GeoJSON only): project id if the FeatureCollection has no "id" member.')
+add_parser.add_argument('-i', '--project_id', type=str, required=False, default=None, help='OPTIONAL (GeoJSON/RDF): project id if the file does not define one (FeatureCollection "id" / owl:Ontology IRI).')
 
 # "debugging add" command parser
 debugging_add_parser = subparsers.add_parser('debugging_add', help='\033[91mEXPERIMENTAL: Adds models to DB without checking for existing DB state for debugging purposes. Only use in combination with Debugging Commit for testing.\033[0m Function: IfcGraphInterface.ifc2graph()')
 debugging_add_parser.add_argument('-p', '--path', type=str, required=True, help='Path to the file to add.')
 debugging_add_parser.add_argument('-t', '--timestamp', type=str, required=False, default="", help='OPTIONAL: Manually create a timestamp as a custom graph identifier.')
-debugging_add_parser.add_argument('-i', '--project_id', type=str, required=False, default=None, help='OPTIONAL (GeoJSON only): project id if the FeatureCollection has no "id" member.')
+debugging_add_parser.add_argument('-i', '--project_id', type=str, required=False, default=None, help='OPTIONAL (GeoJSON/RDF): project id if the file does not define one (FeatureCollection "id" / owl:Ontology IRI).')
 
 # "get" command parser
-get_parser = subparsers.add_parser('get', help='Parses a file (.ifc, .geojson, .json) back from the database. Function: IfcGraphInterface.graph_2_ifc() / GeoJsonGraphInterface.graph_2_geojson()')
+get_parser = subparsers.add_parser('get', help='Parses a file (.ifc, .geojson, .json, .ttl, ...) back from the graph backend. Function: IfcGraphInterface.graph_2_ifc() / GeoJsonGraphInterface.graph_2_geojson()')
 get_parser.add_argument('-p', '--path', type=str, required=True, help='Path the file is parsed to.')
 get_parser.add_argument('-t', '--timestamp', type=str, required=True, help='Timestamp of the graph model to get.')
 
@@ -84,9 +99,26 @@ push_parser = subparsers.add_parser('push', help='Pushes local commits to the re
 log_parser = subparsers.add_parser('log', help='Displays the commit graph for a project.')
 log_parser.add_argument('-p', '--project_id', type=str, required=True, help='IfcProject GUID of the project to display the commit graph for.')
 
+def _excepthook(exc_type, exc, tb):
+    # Configuration errors are user errors: print them without a traceback.
+    if issubclass(exc_type, ConMan2Config.ConfigError):
+        print(f"Error: {exc}", file=sys.stderr)
+        sys.exit(2)
+    sys.__excepthook__(exc_type, exc, tb)
+
+
+sys.excepthook = _excepthook
+
 args = parser.parse_args()
 
-if args.command == 'add':
+if args.backend:
+    ConMan2Config.OVERRIDES['graph_backend'] = args.backend
+if args.increment:
+    ConMan2Config.OVERRIDES['increment_representation'] = args.increment
+
+if args.command == 'config':
+    config_command(args.action, args.key, args.value)
+elif args.command == 'add':
     path = args.path
     timestamp = args.timestamp
     add(path, timestamp, args.project_id)

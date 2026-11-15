@@ -134,6 +134,35 @@ Unit tests are now available to ensure the reliability and correctness of core f
 - Verification of relationship and attribute integrity.
 To run the unit tests, install the development dependencies (see `requirements-dev.txt`) and execute `pytest tests/ -v` from the root directory.
 
+## Configuration (graph backend, increment representation)
+
+Base parameters are stored in `conman2_config.json` in the working directory:
+
+```bash
+python src/conman2.py config                 # interactive menu (in a terminal; `config menu` forces it)
+python src/conman2.py config show
+python src/conman2.py config set graph_backend networkx
+python src/conman2.py config set increment_representation rdf-patch
+python src/conman2.py --backend neo4j get -p out.ifc -t ts1   # override for one call only
+```
+
+| Key | Values | Meaning |
+|---|---|---|
+| `graph_backend` | `neo4j` (default), `networkx` | where graph versions are stored. `networkx` needs no database: graph files go into `networkx_data_dir` (`graph_data/`). |
+| `increment_representation` | `conman` (default), `rdf-patch` | how a commit's increment is stored. `conman`: topological + semantic patch (all formats). `rdf-patch`: an RDF Patch file (`patch_data/Patch_RDF_*.rdfp`), **RDF projects only**; IFC/GeoJSON commits keep using `conman`. The type is recorded per commit, so timelines can mix both. |
+| `rdf_tbox` | `exclude` (default), `include` | RDF: version only the ABox and pin the TBox by a canonical hash, or version everything. |
+| `networkx_data_dir` | path | directory for NetworkX graph files |
+
+Patches and the timeline do not depend on the backend. Switching the backend does not migrate the
+versions that are already stored; add the current version again in the new backend.
+
+## RDF datasets
+
+`.ttl`, `.nt`, `.n3`, `.rdf`, `.owl`, and `.jsonld` files can be versioned with the same commands. The
+project id is derived from the `owl:Ontology` (or `void:`/`dcat:Dataset`) IRI, or given with `-i`.
+Sample data and the mapping are in `src/00_sampleData/RDF/` and
+[`src/rdf_graph_interface/README.md`](src/rdf_graph_interface/README.md).
+
 ## GeoJSON / CityGML
 
 Besides IFC, ConMan2 can version GeoJSON `FeatureCollection`s (city models encoded as GeoJSON,

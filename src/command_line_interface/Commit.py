@@ -1,15 +1,13 @@
-from graph_diff.GraphDiff import GraphDiff
-from graph_patch.GraphPatch import GraphPatch
-from neo4j_core.neo4j_connection import Neo4jConnection
 from version_timeline.VersionTimeline import VersionTimeline
-from command_line_interface.ModelFormats import timestamps_in_db, root_entity_type
+from command_line_interface.Backend import get_backend
+
 
 def commit(project_id: str, branch: str, message: str=""):
 
     version_timeline = VersionTimeline()
-    Neo4jConnection(username="neo4j", password="password", hostname="localhost", port=7687)
+    backend = get_backend()
 
-    added_timestamps = timestamps_in_db(project_id)
+    added_timestamps = backend.timestamps(project_id)
     if len(added_timestamps) == 0:
         raise Exception(f"No graph models found for project {project_id}. Please add a graph model first.")
     elif len(added_timestamps) == 1:
@@ -32,21 +30,12 @@ def commit(project_id: str, branch: str, message: str=""):
         timestamp_init = latest_timestamp
         timestamp_updt = added_timestamps[0]
 
-    print(f"Running diff for project {project_id} on branch {branch} between timestamps {timestamp_init} and {timestamp_updt}.")
-    graph_diff = GraphDiff()
-    graph_diff.run_diff(timestamp_init, timestamp_updt, root_entity_type=root_entity_type(project_id))
-
-    print(f"Creating patch for project {project_id} on branch {branch} between timestamps {timestamp_init} and {timestamp_updt}.")
-    graph_patch = GraphPatch()
-    graph_patch.create_patch(project_id, timestamp_init, timestamp_updt)
+    print(f"Creating increment for project {project_id} on branch {branch} between timestamps {timestamp_init} and {timestamp_updt} (backend: {backend.name}).")
+    increment = backend.create_increment(project_id, timestamp_init, timestamp_updt)
 
     version_timeline = VersionTimeline()
-    version_timeline.add_commit_to_timeline(project_id=project_id, branch=branch, timestamp_init=timestamp_init, timestamp_updt=timestamp_updt, message=message)
+    version_timeline.add_commit_to_timeline(project_id=project_id, branch=branch, timestamp_init=timestamp_init,
+                                            timestamp_updt=timestamp_updt, message=message, increment=increment)
 
-    ## Remove init model.
-    query = f"""
-    MATCH (n)
-    WHERE n.timestamp = '{timestamp_init}'
-    DETACH DELETE n
-    """
-    Neo4jConnection().cypher_query(query)
+    # Remove init model.
+    backend.drop(timestamp_init)

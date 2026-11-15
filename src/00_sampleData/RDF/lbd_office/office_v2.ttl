@@ -1,0 +1,96 @@
+@prefix bot: <https://w3id.org/bot#> .
+@prefix ex: <https://example.org/tum/office#> .
+@prefix inst: <https://example.org/tum/office-building/> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+ex:MeetingRoom a owl:Class ;
+    rdfs:subClassOf bot:Space .
+
+ex:area a owl:DatatypeProperty ;
+    rdfs:domain bot:Space ;
+    rdfs:range xsd:decimal .
+
+<https://example.org/tum/office-building> a owl:Ontology ;
+    owl:imports <https://w3id.org/bot> ;
+    owl:versionInfo "2" .
+
+inst:site a bot:Site ;
+    rdfs:label "TUM Stammgelände"@de ;
+    bot:hasBuilding inst:building .
+
+ex:FireDoor a owl:Class ;
+    rdfs:subClassOf [ a owl:Restriction ;
+            owl:onProperty ex:hasProperty ;
+            owl:someValuesFrom ex:FireRatingProperty ] .
+
+ex:Office a owl:Class ;
+    rdfs:label "Office"@en ;
+    rdfs:subClassOf bot:Space .
+
+ex:hasProperty a owl:ObjectProperty .
+
+inst:desk1 a bot:Element ;
+    rdfs:label "Desk 1" .
+
+inst:door1 a ex:FireDoor,
+        bot:Element ;
+    rdfs:label "T 1" ;
+    ex:hasProperty [ ex:name "fireRating" ;
+            ex:value "T30" ] .
+
+inst:space001 a ex:Office,
+        bot:Space ;
+    rdfs:label "Büro 0.01"@de,
+        "Office 0.01 (renovated)"@en ;
+    ex:area 25.1 ;
+    ex:occupancy 2 ;
+    bot:adjacentElement inst:wall1,
+        inst:wall2 ;
+    bot:containsElement inst:desk1 .
+
+inst:space002 a bot:Space ;
+    rdfs:label "Flur 0.02"@de ;
+    ex:area 12.0 ;
+    bot:adjacentElement inst:door1,
+        inst:wall2 .
+
+inst:space101 a bot:Space ;
+    rdfs:label "Büro 1.01"@de ;
+    ex:area 30.25 ;
+    bot:adjacentElement inst:wall3 .
+
+inst:storey0 a bot:Storey ;
+    ex:elevation 0.0 ;
+    bot:hasSpace inst:space001,
+        inst:space002 .
+
+inst:storey1 a bot:Storey ;
+    ex:elevation 3.5 ;
+    bot:hasSpace inst:space101 .
+
+inst:wall1 a bot:Element ;
+    rdfs:label "AW 1" ;
+    ex:hasProperty [ ex:name "thickness" ;
+            ex:value 0.365 ] .
+
+inst:wall3 a bot:Element ;
+    rdfs:label "AW 3" ;
+    ex:boundary ( "0 0" "5 0" "5 6" "0 6" ) .
+
+inst:building a bot:Building ;
+    rdfs:label "N1" ;
+    bot:hasStorey inst:storey0,
+        inst:storey1 .
+
+inst:wall2 a bot:Element ;
+    rdfs:label "IW 2" ;
+    ex:hasProperty [ ex:name "fireRating" ;
+            ex:value "F120" ] .
+
+[] a ex:Note ;
+    rdfs:comment "Survey 2026-06" ;
+    ex:about inst:building .
+

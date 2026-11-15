@@ -1,9 +1,7 @@
-from neo4j_core.neo4j_connection import Neo4jConnection
+from command_line_interface.Backend import get_backend
 import os
 
 def nuke(yes: bool=False):
-
-    Neo4jConnection(username="neo4j", password="password", hostname="localhost", port=7687)
 
     if not yes:
         answer = input("\033[91mWARNING: This will delete all added data in the database, delete the timeline, and delete all patch files.\033[0m\nDo you want to continue? (y/n): ")
@@ -25,11 +23,7 @@ def nuke(yes: bool=False):
         if os.path.isfile(file_path):
             os.remove(file_path)
 
-    # Direct CYPHER query to delete all nodes and relationships in the db.
-    query = f"""
-    MATCH (n)
-    DETACH DELETE n
-    """
-    Neo4jConnection().cypher_query(query)
+    # Remove all graph versions in the configured backend.
+    get_backend().reset()
 
-    print(f"Database has been nuked. Neo4J is emptied, patch files and version timeline are removed.")
+    print(f"Nuked: all graph versions in the configured backend, patch files and the version timeline are removed.")
