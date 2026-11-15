@@ -1,0 +1,6 @@
+{
+  "v1": "Initial LBD office: site, building, 2 storeys, 3 spaces, 5 elements; literals with datatypes and languages, PROPS-style blank-node properties, an rdf:List, a root blank node; inline TBox (ontology header, 2 classes, OWL restriction, 2 properties).",
+  "v2": "ABox semantic: space001 area 24.5->25.1, English label changed, ex:occupancy added; wall2 fire rating F90->F120 (inside a blank node); unit of wall1 thickness removed; note comment changed. TBox only: owl:versionInfo 2, class ex:MeetingRoom added.",
+  "v3": "ABox topology: door1 removed with its property; space102 and wall4 added; desk1 moved from space001 to space101 (re-targeted relation).",
+  "v4": "wall3 boundary list gets a point inserted; space002 additionally typed ex:Office; desk1 renamed to desk-001 (IRI change = delete + add); French label for space101."
+}
