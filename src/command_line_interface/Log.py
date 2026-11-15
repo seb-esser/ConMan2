@@ -1,7 +1,9 @@
 from version_timeline.VersionTimeline import VersionTimeline
 import json
 
-version_timeline = VersionTimeline()
 
 def log_timeline(project_id: str):
-    print(json.dumps(version_timeline.timeline[project_id], indent=4))
+    timeline = VersionTimeline().timeline
+    if project_id not in timeline:
+        raise Exception(f"Project {project_id} is not tracked. Tracked projects: {', '.join(timeline) or '-'}")
+    print(json.dumps(timeline[project_id], indent=4))

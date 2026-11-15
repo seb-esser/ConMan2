@@ -276,3 +276,7 @@ timeline.json
 *.env
 *.gpickle
 .coverage
+# local virtual environment and ConMan2 working data
+.venv/
+conman2_config.json
+graph_data/

@@ -1,14 +1,8 @@
-from neo4j_core.neo4j_connection import Neo4jConnection
+from command_line_interface.Backend import get_backend
+
 
 def reset():
 
-    Neo4jConnection(username="neo4j", password="password", hostname="localhost", port=7687)
-
-    # Direct CYPHER query to delete all nodes and relationships in the db.
-    query = f"""
-    MATCH (n)
-    DETACH DELETE n
-    """
-    Neo4jConnection().cypher_query(query)
-
-    print(f"Database has been emptied.")
+    backend = get_backend()
+    backend.reset()
+    print(f"All graph versions in the {backend.name} backend have been removed.")

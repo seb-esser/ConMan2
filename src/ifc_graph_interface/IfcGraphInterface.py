@@ -307,7 +307,7 @@ class IfcGraphInterface:
         db.cypher_query("CALL db.awaitIndexes()")
     
 
-    def __send_to_nx(self, timestamp, batch_size, model, primary_nodes, connection_nodes, secondary_nodes):
+    def __send_to_nx(self, timestamp, batch_size, model, primary_nodes, connection_nodes, secondary_nodes, graph_file=None):
 
         nx_interface = networkxConnection()
         # add node sceletons. Each node is identified by its p21_id and has a property dict with the other primitive attributes that are directly attached to the node
@@ -403,7 +403,7 @@ class IfcGraphInterface:
                     timestamp=props.get("timestamp"),
                 )
 
-        nx_interface.save_graph(f"networkx_graph_{timestamp}.gpickle")
+        nx_interface.save_graph(graph_file or f"networkx_graph_{timestamp}.gpickle")
 
     def __retrieve_from_neo4j(self, timestamp: str, model: ifcopenshell.file): 
         """
@@ -511,9 +511,9 @@ class IfcGraphInterface:
         # finished iterating all nodes, return assembled model
         return model
 
-    def __retrieve_from_nx(self, timestamp: str, model: ifcopenshell.file):
+    def __retrieve_from_nx(self, timestamp: str, model: ifcopenshell.file, graph_file: str = None):
         nx_interface = networkxConnection()
-        nx_interface.load_graph(f"networkx_graph_{timestamp}.gpickle")
+        nx_interface.load_graph(graph_file or f"networkx_graph_{timestamp}.gpickle")
         
         # Dictionary to map newly created IFC entities to their source node ids.
         id_mapping = {}
@@ -576,7 +576,7 @@ class IfcGraphInterface:
     ### Main Functions ###
     ######################
 
-    def ifc_2_graph(self, ifc_path: str, timestamp: str, batch_size: int = 20000):
+    def ifc_2_graph(self, ifc_path: str, timestamp: str, batch_size: int = 20000, graph_file: str = None):
 
         # Load IFC model.
         print("Loading IFC model.")
@@ -620,11 +620,11 @@ class IfcGraphInterface:
                                  primary_nodes, connection_nodes, secondary_nodes)
         elif self.graph_provider == "networkx":
             self.__send_to_nx(timestamp, batch_size, model,
-                              primary_nodes, connection_nodes, secondary_nodes)
+                              primary_nodes, connection_nodes, secondary_nodes, graph_file)
 
         print("Finished IFC parsing.")
 
-    def graph_2_ifc(self, ifc_path: str, timestamp: str):
+    def graph_2_ifc(self, ifc_path: str, timestamp: str, graph_file: str = None):
         """
         Generate an IFC file from a graph.
 
@@ -640,7 +640,7 @@ class IfcGraphInterface:
         if self.graph_provider == "neo4j":
             model = self.__retrieve_from_neo4j(timestamp, model)
         elif self.graph_provider == "networkx":
-            model = self.__retrieve_from_nx(timestamp, model)
+            model = self.__retrieve_from_nx(timestamp, model, graph_file)
                 
         # Save the IFC model to file.
         print("Write model to file. ")
