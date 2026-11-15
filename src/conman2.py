@@ -20,7 +20,7 @@ from command_line_interface.DebuggingCommit import debugging_commit
 from command_line_interface.Config import config_command
 from cli_config import ConMan2Config
 
-parser = argparse.ArgumentParser(description='ConMan2 CLI - Version Manager for BIM models (IFC) and city models (GeoJSON). ')
+parser = argparse.ArgumentParser(description='ConMan2 CLI - Version Manager for BIM models (IFC), city models (GeoJSON) and RDF datasets. ')
 parser.add_argument('--backend', choices=ConMan2Config.SCHEMA['graph_backend']['choices'], default=None,
                     help='OPTIONAL: graph backend for this call only (overrides the stored config).')
 parser.add_argument('--increment', choices=ConMan2Config.SCHEMA['increment_representation']['choices'], default=None,
@@ -36,19 +36,19 @@ config_parser.add_argument('key', nargs='?', default=None, help=f"Config key: {'
 config_parser.add_argument('value', nargs='?', default=None, help='New value (for set).')
 
 # "add" command parser
-add_parser = subparsers.add_parser('add', help='Adds a file (.ifc, .geojson, .json) to the database. Function: IfcGraphInterface.ifc_2_graph() / GeoJsonGraphInterface.geojson_2_graph()')
+add_parser = subparsers.add_parser('add', help='Adds a file (.ifc, .geojson, .json, .ttl, .nt, .n3, .rdf, .owl, .jsonld) to the graph backend. Function: IfcGraphInterface.ifc_2_graph() / GeoJsonGraphInterface.geojson_2_graph()')
 add_parser.add_argument('-p', '--path', type=str, required=True, help='Path to the file to add.')
 add_parser.add_argument('-t', '--timestamp', type=str, required=False, default="", help='OPTIONAL: Manually create a timestamp as a custom graph identifier.')
-add_parser.add_argument('-i', '--project_id', type=str, required=False, default=None, help='OPTIONAL (GeoJSON only): project id if the FeatureCollection has no "id" member.')
+add_parser.add_argument('-i', '--project_id', type=str, required=False, default=None, help='OPTIONAL (GeoJSON/RDF): project id if the file does not define one (FeatureCollection "id" / owl:Ontology IRI).')
 
 # "debugging add" command parser
 debugging_add_parser = subparsers.add_parser('debugging_add', help='\033[91mEXPERIMENTAL: Adds models to DB without checking for existing DB state for debugging purposes. Only use in combination with Debugging Commit for testing.\033[0m Function: IfcGraphInterface.ifc2graph()')
 debugging_add_parser.add_argument('-p', '--path', type=str, required=True, help='Path to the file to add.')
 debugging_add_parser.add_argument('-t', '--timestamp', type=str, required=False, default="", help='OPTIONAL: Manually create a timestamp as a custom graph identifier.')
-debugging_add_parser.add_argument('-i', '--project_id', type=str, required=False, default=None, help='OPTIONAL (GeoJSON only): project id if the FeatureCollection has no "id" member.')
+debugging_add_parser.add_argument('-i', '--project_id', type=str, required=False, default=None, help='OPTIONAL (GeoJSON/RDF): project id if the file does not define one (FeatureCollection "id" / owl:Ontology IRI).')
 
 # "get" command parser
-get_parser = subparsers.add_parser('get', help='Parses a file (.ifc, .geojson, .json) back from the database. Function: IfcGraphInterface.graph_2_ifc() / GeoJsonGraphInterface.graph_2_geojson()')
+get_parser = subparsers.add_parser('get', help='Parses a file (.ifc, .geojson, .json, .ttl, ...) back from the graph backend. Function: IfcGraphInterface.graph_2_ifc() / GeoJsonGraphInterface.graph_2_geojson()')
 get_parser.add_argument('-p', '--path', type=str, required=True, help='Path the file is parsed to.')
 get_parser.add_argument('-t', '--timestamp', type=str, required=True, help='Timestamp of the graph model to get.')
 

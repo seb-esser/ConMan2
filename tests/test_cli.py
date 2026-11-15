@@ -170,3 +170,100 @@ def test_cli_session_neo4j(cli):
     cli("nuke", "-y")
     run_session(cli)
     cli("nuke", "-y")
+
+
+# ----------------------------------------------------------------------
+# RDF projects: increment representation conman | rdf-patch
+# ----------------------------------------------------------------------
+
+OFFICE = [os.path.join(SRC, "00_sampleData", "RDF", "lbd_office", f"office_v{i}.ttl") for i in range(1, 5)]
+OFFICE_ID = "example.org_tum_office-building"
+
+
+def office_abox(i):
+    from rdf_graph_interface.RdfGraphInterface import load_rdf
+    from rdf_graph_interface.tbox_abox import partition
+    return partition(load_rdf(OFFICE[i - 1]))[0]
+
+
+def assert_version(cli, ts, i):
+    from rdflib.compare import isomorphic
+    from rdf_graph_interface.RdfGraphInterface import load_rdf
+    out = f"out_{ts}.ttl"
+    cli("get", "-p", out, "-t", ts)
+    assert isomorphic(load_rdf(cli.path(out)), office_abox(i)), f"{ts} != office_v{i}"
+
+
+def run_rdf_session(cli, increments):
+    """Commit office v1..v4 (increment per commit from `increments`), then check out backwards and forwards."""
+    cli("add", "-p", OFFICE[0], "-t", "r1")
+    cli("commit", "-p", OFFICE_ID, "-b", "main")
+    for i in (2, 3, 4):
+        cli("config", "set", "increment_representation", increments[i - 2])
+        cli("add", "-p", OFFICE[i - 1], "-t", f"r{i}")
+        cli("commit", "-p", OFFICE_ID, "-b", "main", "-m", f"v{i}")
+    assert_version(cli, "r4", 4)
+    cli("checkout", "-p", OFFICE_ID, "-b", "main", "-t", "r1")
+    assert_version(cli, "r1", 1)
+    cli("checkout", "-p", OFFICE_ID, "-b", "main", "-t", "r3")
+    assert_version(cli, "r3", 3)
+    commits = cli.json("timeline_data/timeline.json")[OFFICE_ID]["commits"]
+    assert [commits[f"r{i}"]["increment"] for i in (2, 3, 4)] == increments
+    patches = os.listdir(cli.path("patch_data"))
+    for i, inc in zip((2, 3, 4), increments):
+        rdfp = f"Patch_RDF_{OFFICE_ID}_r{i - 1}_r{i}.rdfp"
+        assert (rdfp in patches) == (inc == "rdf-patch")
+        assert (f"Patch_Topo_{OFFICE_ID}_r{i - 1}_r{i}.json" in patches) == (inc == "conman")
+
+
+@pytest.mark.parametrize("increment", ["rdf-patch", "conman"])
+def test_cli_rdf_session_networkx(cli, increment):
+    cli("config", "set", "graph_backend", "networkx")
+    run_rdf_session(cli, [increment] * 3)
+
+
+def test_cli_rdf_mixed_increments_networkx(cli):
+    cli("config", "set", "graph_backend", "networkx")
+    run_rdf_session(cli, ["rdf-patch", "conman", "rdf-patch"])
+
+
+def test_cli_rdf_patch_file_content(cli):
+    cli("config", "set", "graph_backend", "networkx")
+    cli("config", "set", "increment_representation", "rdf-patch")
+    cli("add", "-p", OFFICE[0], "-t", "r1")
+    cli("commit", "-p", OFFICE_ID, "-b", "main")
+    cli("add", "-p", OFFICE[1], "-t", "r2")
+    cli("commit", "-p", OFFICE_ID, "-b", "main")
+    with open(cli.path(f"patch_data/Patch_RDF_{OFFICE_ID}_r1_r2.rdfp"), encoding="utf-8") as f:
+        text = f.read()
+    assert text.startswith(f"H id <urn:conman2:{OFFICE_ID}:r2> .\nH prev <urn:conman2:{OFFICE_ID}:r1> .")
+    assert '"F120"' in text and "MeetingRoom" not in text          # ABox only, TBox change not in the patch
+    from graph_patch.RdfPatch import parse_rdf_patch
+    patch = parse_rdf_patch(text)
+    assert patch["headers"]["conman2-meta"]["tbox"]["sha256"] != patch["headers"]["conman2-meta-prev"]["tbox"]["sha256"]
+
+
+def test_cli_rdf_patch_setting_falls_back_to_conman_for_ifc(cli):
+    cli("config", "set", "graph_backend", "networkx")
+    cli("config", "set", "increment_representation", "rdf-patch")
+    from ifc_graph_interface.IfcGraphInterface import IfcGraphInterface
+    init, updt = os.path.join(IFC, "Initial_GeomRepresentation_01.ifc"), os.path.join(IFC, "Update_GeomRepresentation_01.ifc")
+    pid = IfcGraphInterface.get_project_id_from_ifc_path(init)
+    cli("add", "-p", init, "-t", "i1")
+    cli("commit", "-p", pid, "-b", "main")
+    cli("add", "-p", updt, "-t", "i2")
+    out = cli("commit", "-p", pid, "-b", "main").stdout
+    assert "using conman patches" in out
+    assert cli.json("timeline_data/timeline.json")[pid]["commits"]["i2"]["increment"] == "conman"
+
+
+@pytest.mark.skipif(not NEO4J_TEST_URI, reason="CONMAN2_TEST_NEO4J_URI not set")
+def test_cli_rdf_session_neo4j(cli):
+    u = urlparse(NEO4J_TEST_URI)
+    with open(cli.path(".env"), "w") as f:
+        f.write(f"NEO4J_URI=bolt://{u.hostname}:{u.port}\nNEO4J_USERNAME={u.username}\nNEO4J_PASSWORD={u.password}\n")
+    probe = cli("remove", "-t", "__conman2_probe__").stdout
+    assert f"Using connection from .env: {u.hostname}:{u.port}" in probe, probe
+    cli("nuke", "-y")
+    run_rdf_session(cli, ["rdf-patch", "conman", "rdf-patch"])
+    cli("nuke", "-y")
