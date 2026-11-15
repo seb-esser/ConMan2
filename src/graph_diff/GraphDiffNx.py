@@ -57,6 +57,9 @@ class GraphDiffNx:
         Traverse the two parsed models starting from PrimaryNodes and find equivalent nodes.
         """
         for _, child_init, rel_init in self.graph_init.out_edges(equiv_node_init, data=True):
+            # Children with identity (Primary/ConnectionNodes) are matched by GlobalId / IoU only (see GraphDiff).
+            if self.graph_init.nodes[child_init].get("label") in ("PrimaryNode", "ConnectionNode"):
+                continue
             for _, child_updt, rel_updt in self.graph_updt.out_edges(equiv_node_updt, data=True):
                 if (
                     rel_init.get("rel_type") == rel_updt.get("rel_type")

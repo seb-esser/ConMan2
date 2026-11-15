@@ -21,8 +21,12 @@ class GraphDiff:
         """
         Traverse the two parsed models starting from PrimaryNodes and find equivalent nodes. Create equilavent_to relations between them.
         """
-        # Iterate over all related nodes.
+        # Iterate over all related nodes. Children with an identity of their own (Primary/ConnectionNodes) are not
+        # paired by position: they are matched by GlobalId (or IoU) in run_diff. Otherwise e.g. two different RDF
+        # resources or IFC property sets at the same (rel_type, list_index) would be declared equivalent.
         for child_init in equiv_node_init.relation_to.all():
+            if isinstance(child_init, (PrimaryNode, ConnectionNode)):
+                continue
             rel_init = equiv_node_init.relation_to.relationship(child_init)
             # Iterate over all corresponding node's related nodes.
             for child_updt in equiv_node_updt.relation_to.all():
