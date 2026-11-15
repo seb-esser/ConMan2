@@ -106,6 +106,21 @@ class TestGraphDiff:
 
         child_init.equivalent_to.connect.assert_not_called()
 
+    def test_create_equivalence_relations_primary_does_not_pair_identified_children(self, diff_tool):
+        """Primary children (own GlobalId) must not be matched by position, only by GlobalId in run_diff."""
+        init_node = create_mock_node("S1", "e1", "Resource", "v1")
+        updt_node = create_mock_node("S1", "e2", "Resource", "v2")
+        child_init = create_mock_node("desk1", "e3", "Resource", "v1", node_class=lambda: MagicMock(spec=PrimaryNode))
+        child_updt = create_mock_node("desk-001", "e4", "Resource", "v2", node_class=lambda: MagicMock(spec=PrimaryNode))
+        init_node.relation_to.all.return_value = [child_init]
+        updt_node.relation_to.all.return_value = [child_updt]
+        init_node.relation_to.relationship.return_value = MagicMock(rel_type="containsElement", list_index=0)
+        updt_node.relation_to.relationship.return_value = MagicMock(rel_type="containsElement", list_index=0)
+
+        diff_tool.create_equivalence_relations_primary(init_node, updt_node)
+
+        child_init.equivalent_to.connect.assert_not_called()
+
     def test_create_equivalence_relations_connection_global_id(self, diff_tool):
         """Test fast matching for ConnectionNode with identical GlobalId"""
         conn_init = create_mock_node("Rel_1", "c1", "IfcRelConnects", "v1")
